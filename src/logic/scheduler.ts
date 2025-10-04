@@ -1,6 +1,6 @@
 import assert from "assert";
-import { MemoryAccess, ReadMemory, WaitMemory, WriteMemory } from "../bits/memory/operations";
-import MemoryAccessor from "../executor/interpreter/accessor";
+import { MemoryAccess, ReadMemory, WaitMemory, WriteMemory } from "../memory/operations";
+import MemoryAccessor from "../../executor/interpreter/accessor";
 
 interface PendingAccess
 {

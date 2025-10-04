@@ -1,10 +1,10 @@
-import { format32 } from "../../format";
+import { format32 } from "./format";
 
-export type Port = number | null
+export type DapPort = number | null
 
-export const DebugPort: Port = null;
+export const DapDp: DapPort = null;
 
-export const enum Action 
+export const enum DapAction 
 {
     WRITE, READ, WAIT
 }
@@ -18,34 +18,34 @@ export const enum DapError
     ValueMismatch = 'VALUE_MISMATCH'
 }
 
-export abstract class Operation 
+export abstract class DapOperation 
 {
     constructor(
-        readonly port: Port,
+        readonly port: DapPort,
         readonly register: number,
-        readonly direction: Action,
+        readonly direction: DapAction,
         readonly fail: (e: Error) => void
     ) {}
 
     protected registerName(): string 
     {
-        const port = this.port == DebugPort ? "DP" : `AP${this.port}`
+        const port = this.port == DapDp ? "DP" : `AP${this.port}`
         return `${port}[0x${this.register.toString(16)}]`;
     }
 
     public abstract toString(): string;
 }
 
-export class WriteOperation extends Operation {
+export class DapWrite extends DapOperation {
 
     constructor(
-        port: Port,
+        port: DapPort,
         register: number,
         readonly value: Uint32Array,
         readonly done: () => void,
         fail: (e: Error) => void
     ) {
-        super(port, register, Action.WRITE, fail)
+        super(port, register, DapAction.WRITE, fail)
     }
 
     override toString(): string {
@@ -53,16 +53,16 @@ export class WriteOperation extends Operation {
     }
 }
 
-export class ReadOperation extends Operation 
+export class DapRead extends DapOperation 
 {
     constructor(
-        port: Port,
+        port: DapPort,
         register: number,
         readonly count: number,
         readonly done: (op: Uint32Array) => void,
         fail: (e: Error) => void
     ) {
-        super(port, register, Action.READ, fail)
+        super(port, register, DapAction.READ, fail)
     }
 
     override toString(): string {
@@ -70,17 +70,17 @@ export class ReadOperation extends Operation
     }
 }
 
-export class WaitOperation extends Operation 
+export class DapWait extends DapOperation 
 {
     constructor(
-        port: Port,
+        port: DapPort,
         register: number,
         readonly mask: number,
         readonly value: number,
         readonly done: () => void,
         fail: (e: Error) => void
     ) {
-        super(port, register, Action.WAIT, fail)
+        super(port, register, DapAction.WAIT, fail)
     }
 
     override toString(): string {

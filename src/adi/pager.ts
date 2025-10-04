@@ -1,7 +1,5 @@
-import { DebugPort } from "./defs";
-
-import * as dap from '../dap/dap'
-import * as operations from "./operations";
+import { AdiOperation, AdiRead, AdiWait, AdiWrite, DebugPort } from "./defs";
+import { DapOperation, DapWrite, DapDp, DapAction, DapRead, DapWait } from '../dap'
 
 export class Pager
 {
@@ -21,14 +19,14 @@ export class Pager
         return this.apsel === apsel;
     }
 
-    private select(dpbanksel: number, apbanksel: number, apsel: number, fail: (e: Error) => void): dap.Operation 
+    private select(dpbanksel: number, apbanksel: number, apsel: number, fail: (e: Error) => void): DapOperation 
     {
         this.dpbanksel = dpbanksel;
         this.apbanksel = apbanksel;
         this.apsel = apsel;
 
-        return new dap.WriteOperation(
-            dap.DebugPort,
+        return new DapWrite(
+            DapDp,
             DebugPort.SELECT.address,
             Uint32Array.from([(apsel << 24) | (apbanksel << 4) | dpbanksel]),
             () => {},
@@ -36,12 +34,12 @@ export class Pager
         )
     }
 
-    public toDap(ops: operations.Operation[]): dap.Operation[]
+    public toDap(ops: AdiOperation[]): DapOperation[]
     {
-        const ret: dap.Operation[] = [];
+        const ret: DapOperation[] = [];
 
-        const firstDpAccessBank = ops.find(o => o.register.port == dap.DebugPort && o.register.address == 0x04)?.register.bank ?? 0;
-        const firstApAccess = ops.find(o => o.register.port != dap.DebugPort);
+        const firstDpAccessBank = ops.find(o => o.register.port == DapDp && o.register.address == 0x04)?.register.bank ?? 0;
+        const firstApAccess = ops.find(o => o.register.port != DapDp);
 
         const firstApAccessBank = firstApAccess?.register.bank ?? 0;
         const firstApAccessApsel = firstApAccess?.register.port ?? 0;
@@ -49,7 +47,7 @@ export class Pager
         for(const o of ops)
         {
             switch(o.register.port){
-                case dap.DebugPort:
+                case DapDp:
                     if(o.register.address == 0x04 && !this.hasDpBank(o.register.bank))
                     {
                         ret.push(this.select(o.register.bank, this.apbanksel ?? firstApAccessBank, this.apsel ?? firstApAccessApsel, o.fail))
@@ -64,19 +62,19 @@ export class Pager
             }
 
             switch(o.direction) {
-                case dap.Action.READ:
-                    const r = o as operations.ReadOperation;
-                    ret.push(new dap.ReadOperation(r.register.port, r.register.address, r.count, r.done, o.fail));
+                case DapAction.READ:
+                    const r = o as AdiRead;
+                    ret.push(new DapRead(r.register.port, r.register.address, r.count, r.done, o.fail));
                     break;
             
-                case dap.Action.WRITE:
-                    const w = o as operations.WriteOperation;
-                    ret.push(new dap.WriteOperation(w.register.port, w.register.address, w.value, w.done, o.fail));
+                case DapAction.WRITE:
+                    const w = o as AdiWrite;
+                    ret.push(new DapWrite(w.register.port, w.register.address, w.value, w.done, o.fail));
                     break;
 
-                case dap.Action.WAIT:
-                    const a = o as operations.WaitOperation;
-                    ret.push(new dap.WaitOperation(a.register.port, a.register.address, a.mask, a.value, a.done, o.fail));
+                case DapAction.WAIT:
+                    const a = o as AdiWait;
+                    ret.push(new DapWait(a.register.port, a.register.address, a.mask, a.value, a.done, o.fail));
                     break;
             }
         }

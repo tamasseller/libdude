@@ -1,23 +1,22 @@
 import assert from "assert";
 
-import * as mcu from "../mcu.ts";
+import * as mcu from "../src/target/mcu";
 
-import { ApClass } from "../../adi/adi.ts";
-import { Jep106_Manufacturer } from "../../coresight/jep106.ts";
-import { StPartNumbers } from '../../coresight/pidrPartNumbers.ts'
-
+import { ApClass } from "../src/adi/adi.ts";
+import { Jep106_Manufacturer } from "../src/coresight/jep106.ts";
+import { StPartNumbers } from '../src/coresight/pidrPartNumbers.ts'
 
 import { fastProgram, massErase, normalProgram } from "./stm32g0flash.ts";
 import { DeviceSignature, partName, identifyPackage, sramSizeKb } from "./stm32g0identity.ts";
 import { DBG, RCC } from "./stm32g0hw.ts";
-import { ConnectOptions, CoreState, Target, UiOptions } from "../../debugAdapter.ts";
-import MemoryAccessor from "../../../executor/interpreter/accessor.ts";
-import Interpreter from "../../../executor/interpreter/intepreter.ts";
-import { LoadStoreWidth } from "../../../executor/program/common.ts";
-import { Constant } from "../../../executor/program/expression.ts";
-import procedure from "../../../executor/program/procedure.ts";
-import { CortexM0 } from "../../cm0/cm0ops.ts";
-import { DebugObserver } from "../../../executor/interpreter/observer.ts";
+import { ConnectOptions, CoreState, Target, UiOptions, Storage } from "../src/debugAdapter.ts";
+import MemoryAccessor from "../executor/interpreter/accessor.ts";
+import Interpreter from "../executor/interpreter/intepreter.ts";
+import { LoadStoreWidth } from "../executor/program/common.ts";
+import { Constant } from "../executor/program/expression.ts";
+import { CortexM0 } from "../src/cm0/cm0ops.ts";
+import { DebugObserver } from "../executor/interpreter/observer.ts";
+import Procedure from "../executor/program/procedure.ts";
 
 export const stm32g0: mcu.TargetDriverFactory =
 {
@@ -57,23 +56,23 @@ export const stm32g0: mcu.TargetDriverFactory =
 
             const cortex = new CortexM0(log, interpreter)
 
-            await interpreter.run(procedure(0, 0, () => 
-            [
-                    /* Enable the clock for the DBGMCU if it's not already */
-                    RCC.APBENR1.update(RCC.APBENR1.DBGEN.is(true)),
+            await interpreter.run(Procedure.build($ => 
+            {
+                /* Enable the clock for the DBGMCU if it's not already */
+                $.add(RCC.APBENR1.update(RCC.APBENR1.DBGEN.is(true)))
 
-                    /* Enable debugging during all low power modes */
-                    DBG.CR.update(
-                        DBG.CR.DBG_STANDBY.is(true), 
-                        DBG.CR.DBG_STOP.is(true)
-                    ),
+                /* Enable debugging during all low power modes */
+                $.add(DBG.CR.update(
+                    DBG.CR.DBG_STANDBY.is(true), 
+                    DBG.CR.DBG_STOP.is(true)
+                ))
 
-                    /* And make sure the WDTs stay synchronised to the run state of the processor */
-                    DBG.APB_FZ1.update(
-                        DBG.APB_FZ1.DBG_IWDG_STOP.is(true),
-                        DBG.APB_FZ1.DBG_WWDG_STOP.is(true)
-                    ),
-            ]))
+                /* And make sure the WDTs stay synchronised to the run state of the processor */
+                $.add(DBG.APB_FZ1.update(
+                    DBG.APB_FZ1.DBG_IWDG_STOP.is(true),
+                    DBG.APB_FZ1.DBG_WWDG_STOP.is(true)
+                ))
+            }))
 
             if(opts.underReset)
             {
@@ -84,13 +83,14 @@ export const stm32g0: mcu.TargetDriverFactory =
                 await cortex.processor.halt()
             }
 
-            const [part, pkgData, flashSizeKb] = 
-                await interpreter.run(procedure(0, 3, (_, [part, pkg, flash]) => [
-                    part.set(DBG.IDCODE.get(DBG.IDCODE.DEV_ID)),
-                    pkg.set(new Constant(DeviceSignature.PackageData).load(LoadStoreWidth.U2).bitand(0xf)),
-                    flash.set(new Constant(DeviceSignature.FlashSize).load(LoadStoreWidth.U2)),
-            ]))
-
+            const [part, pkgData, flashSizeKb] = await interpreter.run(Procedure.build($ => 
+            {
+                const part = $.declare(DBG.IDCODE.get(DBG.IDCODE.DEV_ID))
+                const pkg = $.declare(new Constant(DeviceSignature.PackageData).load(LoadStoreWidth.U2).bitand(0xf))
+                const flash = $.declare(new Constant(DeviceSignature.FlashSize).load(LoadStoreWidth.U2))
+                $.return(part, pkg, flash)
+            }))
+        
             assert(part == ti.discoveredAps![0].memAp!.pidr!.part)
 
             if(256 < flashSizeKb)

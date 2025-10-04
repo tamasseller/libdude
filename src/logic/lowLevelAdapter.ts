@@ -1,8 +1,6 @@
-import * as adi from '../bits/adi/adi'
-import * as adiDef from '../bits/adi/defs'
-import * as adiOps from '../bits/adi/operations'
-import * as memAp from '../bits/memory/mem-ap'
-import * as coreSight from '../bits/coresight/coresight'
+import * as adiDef from '../adi/defs'
+import * as memAp from '../memory/mem-ap'
+import * as coreSight from '../coresight/coresight'
 
 import * as mcu from '../target/mcu'
 import * as target from '../target/identify'
@@ -10,13 +8,14 @@ import * as target from '../target/identify'
 import * as operation from './operation'
 
 import { MemoryAccessScheduler } from './scheduler'
-import MemoryTracer from '../bits/memory/trace'
+import MemoryTracer from '../memory/trace'
 import { ConnectOptions, DebugAdapter, Target, UiOptions } from '../debugAdapter'
+import { Pager } from '../adi/pager'
 
 class DebugAccessOperation
 {
-    ops: adiOps.Operation[]
-    constructor(ops: adiOps.Operation[]) { this.ops = ops }
+    ops: adiDef.AdiOperation[]
+    constructor(ops: adiDef.AdiOperation[]) { this.ops = ops }
 }
 
 export abstract class LowLevelAdapter implements DebugAdapter
@@ -26,15 +25,15 @@ export abstract class LowLevelAdapter implements DebugAdapter
     public abstract claim(): Promise<string>
     public abstract release(): Promise<void>   
 
-    private pager: adi.Pager = new adi.Pager
+    private pager: Pager = new Pager
 
     protected abstract lowLevelExecute(ops: operation.LinkOperation[]): void
     
-    execute(...ops: (operation.LinkOperation | adiOps.Operation)[]): void
+    execute(...ops: (operation.LinkOperation | adiDef.AdiOperation)[]): void
     {
         const wrapped = ops.map(op => 
         {
-            if(op instanceof adiOps.Operation) 
+            if(op instanceof adiDef.AdiOperation) 
             {
                 if(this.log.dapTrace) {
                     this.log.dapTrace(`${op}`)
@@ -126,7 +125,7 @@ export abstract class LowLevelAdapter implements DebugAdapter
         {
             const end = Math.min(start + step, 256);
             
-            const tasks: adiOps.Operation[] = []
+            const tasks: adiDef.AdiOperation[] = []
             const promises: Promise<number>[] = []
             for(let apsel = start; apsel < end; apsel++)
             {

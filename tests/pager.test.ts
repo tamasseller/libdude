@@ -1,14 +1,14 @@
-import * as adiOps from '../bits/adi/adi';
-import * as adiDef from '../bits/adi/defs';
+import { Pager } from '../src/adi/pager';
+import { DebugPort, MemoryAccessPort, CSWMask } from '../src/adi/defs';
 
 import test, { suite } from 'node:test';
 import assert from 'node:assert';
-import { format32 } from '../format';
+import { format32 } from '../src/format';
 
 suite("pager", {}, () => {
     test("readNonBankedDp", () => {
         assert.deepStrictEqual(
-            (new adiOps.Pager()).toDap([adiDef.DebugPort.DPIDR.read(() => {}, (_) => {})]).map(x =>x.toString()),
+            (new Pager()).toDap([DebugPort.DPIDR.read(() => {}, (_) => {})]).map(x =>x.toString()),
             [
                 `READ(1) DP[0x0]`,
             ]
@@ -17,7 +17,7 @@ suite("pager", {}, () => {
     
     test("readBankedDp", () => {
         return assert.deepStrictEqual(
-            (new adiOps.Pager()).toDap([adiDef.DebugPort.CTRL_STAT.read(() => { }, (_) => { })]).map(x => x.toString()),
+            (new Pager()).toDap([DebugPort.CTRL_STAT.read(() => { }, (_) => { })]).map(x => x.toString()),
             [
                 `WRITE(1) DP[0x8] <- 0x00000000`,
                 `READ(1) DP[0x4]`,
@@ -26,9 +26,9 @@ suite("pager", {}, () => {
     })
     
     test("readAp", () => {
-        const map = new adiDef.MemoryAccessPort(1);
+        const map = new MemoryAccessPort(1);
         return assert.deepStrictEqual(
-            (new adiOps.Pager()).toDap([map.CSW.read(() => { }, (_) => { })]).map(x => x.toString()),
+            (new Pager()).toDap([map.CSW.read(() => { }, (_) => { })]).map(x => x.toString()),
             [
                 `WRITE(1) DP[0x8] <- 0x01000000`,
                 `READ(1) AP1[0x0]`,
@@ -37,9 +37,9 @@ suite("pager", {}, () => {
     })
     
     test("writeAp", () => {
-        const map = new adiDef.MemoryAccessPort(2);
+        const map = new MemoryAccessPort(2);
         return assert.deepStrictEqual(
-            (new adiOps.Pager()).toDap([map.TAR.write(0xb16b00b5, () => { }, (_) => { })]).map(x => x.toString()),
+            (new Pager()).toDap([map.TAR.write(0xb16b00b5, () => { }, (_) => { })]).map(x => x.toString()),
             [
                 `WRITE(1) DP[0x8] <- 0x02000000`,
                 `WRITE(1) AP2[0x4] <- 0xb16b00b5`,
@@ -48,9 +48,9 @@ suite("pager", {}, () => {
     })
     
     test("writeApSwitchBank", () => {
-        const map = new adiDef.MemoryAccessPort(3);
+        const map = new MemoryAccessPort(3);
         return assert.deepStrictEqual(
-            (new adiOps.Pager()).toDap([
+            (new Pager()).toDap([
                 map.TAR.write(0xb16b00b5, () => { }, (_) => { }),
                 map.BD0.write(0xbabefeed, () => { }, (_) => { })
             ]).map(x => x.toString()),
@@ -64,10 +64,10 @@ suite("pager", {}, () => {
     })
     
     test("hoistApBank", () => {
-        const map = new adiDef.MemoryAccessPort(4);
+        const map = new MemoryAccessPort(4);
         return assert.deepStrictEqual(
-            (new adiOps.Pager()).toDap([
-                adiDef.DebugPort.TARGETID.read(() => { }, (_) => { }),
+            (new Pager()).toDap([
+                DebugPort.TARGETID.read(() => { }, (_) => { }),
                 map.IDR.read(() => { }, (_) => { })
             ]).map(x => x.toString()),
             [
@@ -79,11 +79,11 @@ suite("pager", {}, () => {
     })
     
     test("hoistDpBank", () => {
-        const map = new adiDef.MemoryAccessPort(5);
+        const map = new MemoryAccessPort(5);
         return assert.deepStrictEqual(
-            (new adiOps.Pager()).toDap([
+            (new Pager()).toDap([
                 map.IDR.read(() => { }, (_) => { }),
-                adiDef.DebugPort.TARGETID.read(() => { }, (_) => { })
+                DebugPort.TARGETID.read(() => { }, (_) => { })
             ]).map(x => x.toString()),
             [
                 `WRITE(1) DP[0x8] <- 0x050000f2`,
@@ -94,11 +94,11 @@ suite("pager", {}, () => {
     })
     
     test("cmCoreRegWrite", () => {
-        const map = new adiDef.MemoryAccessPort(6);
+        const map = new MemoryAccessPort(6);
         return assert.deepStrictEqual(
-            (new adiOps.Pager()).toDap([
+            (new Pager()).toDap([
                 map.TAR.write(0xe000edf0, () => { }, (_) => { }),
-                map.CSW.write(adiDef.CSWMask.VALUE | adiDef.CSWMask.SIZE_32, () => { }, (_) => { }),
+                map.CSW.write(CSWMask.VALUE | CSWMask.SIZE_32, () => { }, (_) => { }),
                 map.BD2.write(0xc007da7a, () => { }, (_) => { }),
                 map.BD1.write(0x00010000, () => { }, (_) => { }),
                 map.BD0.wait(0x00010000, 0x00010000, () => { }, (_) => { }),
@@ -106,7 +106,7 @@ suite("pager", {}, () => {
             [
                 `WRITE(1) DP[0x8] <- 0x06000000`,
                 `WRITE(1) AP6[0x4] <- 0xe000edf0`,
-                `WRITE(1) AP6[0x0] <- ${format32(adiDef.CSWMask.VALUE | adiDef.CSWMask.SIZE_32)}`,
+                `WRITE(1) AP6[0x0] <- ${format32(CSWMask.VALUE | CSWMask.SIZE_32)}`,
                 `WRITE(1) DP[0x8] <- 0x06000010`,
                 `WRITE(1) AP6[0x8] <- 0xc007da7a`,
                 `WRITE(1) AP6[0x4] <- 0x00010000`,
@@ -116,11 +116,11 @@ suite("pager", {}, () => {
     })
     
     test("cmCoreRegRead", () => {
-        const map = new adiDef.MemoryAccessPort(7);
+        const map = new MemoryAccessPort(7);
         return assert.deepStrictEqual(
-            (new adiOps.Pager()).toDap([
+            (new Pager()).toDap([
                 map.TAR.write(0xe000edf0, () => { }, (_) => { }),
-                map.CSW.write(adiDef.CSWMask.VALUE | adiDef.CSWMask.SIZE_32, () => { }, (_) => { }),
+                map.CSW.write(CSWMask.VALUE | CSWMask.SIZE_32, () => { }, (_) => { }),
                 map.BD1.write(0x00000000, () => { }, (_) => { }),
                 map.BD0.wait(0x00010000, 0x00010000, () => { }, (_) => { }),
                 map.BD2.read(() => { }, (_) => { }),
@@ -128,7 +128,7 @@ suite("pager", {}, () => {
             [
                 `WRITE(1) DP[0x8] <- 0x07000000`,
                 `WRITE(1) AP7[0x4] <- 0xe000edf0`,
-                `WRITE(1) AP7[0x0] <- ${format32(adiDef.CSWMask.VALUE | adiDef.CSWMask.SIZE_32)}`,
+                `WRITE(1) AP7[0x0] <- ${format32(CSWMask.VALUE | CSWMask.SIZE_32)}`,
                 `WRITE(1) DP[0x8] <- 0x07000010`,
                 `WRITE(1) AP7[0x4] <- 0x00000000`,
                 `WAIT AP7[0x0] & 0x00010000 == 0x00010000`,
@@ -138,11 +138,11 @@ suite("pager", {}, () => {
     })
     
     test("cmCoreRegWriteMultiple", () => {
-        const map = new adiDef.MemoryAccessPort(8);
+        const map = new MemoryAccessPort(8);
         return assert.deepStrictEqual(
-            (new adiOps.Pager()).toDap([
+            (new Pager()).toDap([
                 map.TAR.write(0xe000edf0, () => { }, (_) => { }),
-                map.CSW.write(adiDef.CSWMask.VALUE | adiDef.CSWMask.SIZE_32, () => { }, (_) => { }),
+                map.CSW.write(CSWMask.VALUE | CSWMask.SIZE_32, () => { }, (_) => { }),
                 map.BD2.write(0xc007da7a, () => { }, (_) => { }),
                 map.BD1.write(0x00010000, () => { }, (_) => { }),
                 map.BD0.wait(0x00010000, 0x00010000, () => { }, (_) => { }),
@@ -153,7 +153,7 @@ suite("pager", {}, () => {
             [
                 `WRITE(1) DP[0x8] <- 0x08000000`,
                 `WRITE(1) AP8[0x4] <- 0xe000edf0`,
-                `WRITE(1) AP8[0x0] <- ${format32(adiDef.CSWMask.VALUE | adiDef.CSWMask.SIZE_32)}`,
+                `WRITE(1) AP8[0x0] <- ${format32(CSWMask.VALUE | CSWMask.SIZE_32)}`,
                 `WRITE(1) DP[0x8] <- 0x08000010`,
                 `WRITE(1) AP8[0x8] <- 0xc007da7a`,
                 `WRITE(1) AP8[0x4] <- 0x00010000`,

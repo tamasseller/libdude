@@ -1,4 +1,3 @@
-import * as dap from '../../bits/dap/dap'
 
 import * as protocol from "./protocol"
 
@@ -7,12 +6,13 @@ import * as command from './command'
 
 import * as usb from 'usb'
 
-import * as ll from '../../logic/adapter'
-import * as llOps from '../../logic/operation'
+import * as ll from '../../src/logic/lowLevelAdapter'
+import * as llOps from '../../src/logic/operation'
 import assert from 'assert';
-import { UiOptions } from '../../debugAdapter';
+import { UiOptions } from '../../src/debugAdapter';
 import { promisify } from 'util';
-import { bytes, format16 } from '../../format';
+import { bytes, format16 } from '../../src/format';
+import { DapAction, DapDp, DapError, DapRead, DapWait, DapWrite } from "../../src/dap/dap";
 
 export const DEFAULT_CLOCK_FREQUENCY = 10000000;
 
@@ -23,29 +23,29 @@ const IN_REPORT = 0x100;
 
 function convertTransferResponse(resp: protocol.TransferResponse)
 {
-    const ret: dap.DapError[] = [];
+    const ret: DapError[] = [];
     if(resp & protocol.TransferResponse.PROTOCOL_ERROR)
     {
-        ret.push(dap.DapError.ProtocolError)
+        ret.push(DapError.ProtocolError)
     }
 
     if(resp & protocol.TransferResponse.VALUE_MISMATCH)
     {
-        ret.push(dap.DapError.ValueMismatch)
+        ret.push(DapError.ValueMismatch)
     }
 
     switch(resp & 7)
     {
         case protocol.TransferResponse.WAIT:
-            ret.push(dap.DapError.Wait)
+            ret.push(DapError.Wait)
             break
 
         case protocol.TransferResponse.FAULT:
-            ret.push(dap.DapError.Fault)
+            ret.push(DapError.Fault)
             break
 
         case protocol.TransferResponse.NO_ACK:
-            ret.push(dap.DapError.NoAck)
+            ret.push(DapError.NoAck)
             break
     }
 
@@ -161,9 +161,9 @@ export class CmsisDap extends ll.LowLevelAdapter
                 top.ops.map(o => {
                     switch(o.direction)
                     {
-                        case dap.Action.WRITE:
+                        case DapAction.WRITE:
                         {
-                            const w = o as dap.WriteOperation;
+                            const w = o as DapWrite;
                             assert(w.value.length)
                             let cmd: command.Command | undefined;
 
@@ -184,13 +184,13 @@ export class CmsisDap extends ll.LowLevelAdapter
                             cmd = (w.value.length == 1) 
                                 ? (new command.TransferCommand([
                                     command.TransferRequest.write(
-                                        o.port != dap.DebugPort,
+                                        o.port != DapDp,
                                         o.register, 
                                         w.value[0],
                                         done
                                 )]))
                                 : new command.WriteBlockCommand(
-                                    o.port != dap.DebugPort, 
+                                    o.port != DapDp, 
                                     o.register, 
                                     Array.of(...w.value), 
                                     done
@@ -200,9 +200,9 @@ export class CmsisDap extends ll.LowLevelAdapter
                             break;
                         }
 
-                        case dap.Action.READ:
+                        case DapAction.READ:
                         {
-                            const r = o as dap.ReadOperation;
+                            const r = o as DapRead;
                             assert(r.count)
                             let cmd: command.Command | undefined;
 
@@ -223,21 +223,21 @@ export class CmsisDap extends ll.LowLevelAdapter
                             cmd = (r.count == 1)
                                 ? new command.TransferCommand([
                                     command.TransferRequest.read(
-                                        o.port != dap.DebugPort, o.register, (resp, data) => done(resp, Uint32Array.of(data))
+                                        o.port != DapDp, o.register, (resp, data) => done(resp, Uint32Array.of(data))
                                     )    
                                 ])
                                 : new command.ReadBlockCommand(
-                                    o.port != dap.DebugPort, o.register,  r.count, (resp, data) => done(resp, Uint32Array.of(...data))
+                                    o.port != DapDp, o.register,  r.count, (resp, data) => done(resp, Uint32Array.of(...data))
                                 )
 
                             cmds.push(cmd)
                             break;
                         }
 
-                        case dap.Action.WAIT:
+                        case DapAction.WAIT:
                         {
-                            const a = o as dap.WaitOperation;
-                            const setMask = command.TransferRequest.matchMask(o.port != dap.DebugPort, o.register, a.mask, resp => {
+                            const a = o as DapWait;
+                            const setMask = command.TransferRequest.matchMask(o.port != DapDp, o.register, a.mask, resp => {
                                 if(resp != protocol.TransferResponse.OK)
                                 {
                                     o.fail(new Error(
@@ -247,7 +247,7 @@ export class CmsisDap extends ll.LowLevelAdapter
                                 }
                             })
 
-                            const matchValue = command.TransferRequest.valueMatch(o.port != dap.DebugPort, o.register, a.value, resp => {
+                            const matchValue = command.TransferRequest.valueMatch(o.port != DapDp, o.register, a.value, resp => {
                                 if(resp != protocol.TransferResponse.OK)
                                 {
                                     o.fail(new Error(

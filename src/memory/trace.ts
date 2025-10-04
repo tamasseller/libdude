@@ -1,4 +1,4 @@
-import { bytes, format16, format32, format8 } from "../../format";
+import { bytes, format16, format32, format8 } from "../format";
 import { MemoryAccessObserver } from "./translator";
 
 export default class MemoryTracer implements MemoryAccessObserver

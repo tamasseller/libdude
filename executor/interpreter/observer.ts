@@ -1,7 +1,10 @@
-import { Special, Jump, Loop, Branch, Expression, Store, Assignment, JumpKind, Variable, Constant, Load, Binary, operatorToString, LoadStoreWidth, operatorPrecedence } from "../program/procedure";
+import { format32 } from "../../src/format";
+import { operatorPrecedence, operatorToString } from "../program/binaryOperator";
+import { LoadStoreWidth } from "../program/common";
+import { Variable, Expression, Constant, Load, Binary } from "../program/expression";
+import { Assignment, Store, Loop, Branch, Special, Jump, JumpKind } from "../program/statement";
 import { Observer } from "./intepreter";
 
-import { format32 } from "../../../utility/io"
 import assert from "assert";
 
 export class DebugObserver implements Observer

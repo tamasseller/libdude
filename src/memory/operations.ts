@@ -1,12 +1,12 @@
 import assert from "assert";
-import * as dap from "../dap/dap";
-import { format32 } from "../../format";
+import { DapAction } from "../dap";
+import { format32 } from "../format";
 
 export abstract class MemoryAccess 
 {
     constructor(
         readonly address: number, 
-        readonly action: dap.Action, 
+        readonly action: DapAction, 
         readonly fail: (e: Error) => void
     ) {
         assert(0 <= address && address <= 4294967295);
@@ -24,7 +24,7 @@ export class WriteMemory extends MemoryAccess
         readonly done: () => void = () => { }, 
         reject: (e: Error) => void
     ) {
-        super(address, dap.Action.WRITE, e => 
+        super(address, DapAction.WRITE, e => 
         {
             const valStr = [...this.values.values()].map(n => `00${n.toString(16)}`.slice(-2)).join(" ")
             reject(new Error(`Memory write operation at ${format32(address)} failed with value [${valStr}]`, { cause: e }));
@@ -50,7 +50,7 @@ export class ReadMemory extends MemoryAccess
         readonly done: (v: Buffer) => void = () => { }, 
         reject: (e: Error) => void
     ) {
-        super(address, dap.Action.READ, e => 
+        super(address, DapAction.READ, e => 
         {
             return reject(new Error(`Memory read operation at ${format32(address)} of length ${this.length} failed`, { cause: e }));
         });
@@ -79,7 +79,7 @@ export class WaitMemory extends MemoryAccess
         assert((address & 3) == 0);
         assert((value & ~mask) == 0);
 
-        super(address, dap.Action.WAIT, e => 
+        super(address, DapAction.WAIT, e => 
         {
             return reject(new Error(`Wait for word value of ${format32(value)} with mask ${format32(mask)} operation at ${format32(address)} failed`, { cause: e }));
         });

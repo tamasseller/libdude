@@ -1,4 +1,4 @@
-import * as ops from "../adi/operations";
+import { AdiOperation } from "../adi/adi";
 import { MemoryAccess } from "./operations";
 
 export interface MemoryAccessObserver {
@@ -8,5 +8,5 @@ export interface MemoryAccessObserver {
 }
 
 export default interface MemoryAccessTranslator {
-    translate(cmds: MemoryAccess[]): ops.Operation[];
+    translate(cmds: MemoryAccess[]): AdiOperation[];
 }

@@ -1,4 +1,4 @@
-import { StPartNumbers } from "../../bits/coresight/pidrPartNumbers";
+import { StPartNumbers } from "../src/coresight/pidrPartNumbers";
 
 /*
  * As per RM0454 STM32G0x0 advanced Arm® -based 32-bit MCUs Reference manual

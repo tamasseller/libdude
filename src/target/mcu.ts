@@ -1,13 +1,13 @@
-import * as coresight from "../bits/coresight/coresight"
-import * as adiDef from "../bits/adi/defs"
-import MemoryAccessTranslator from "../bits/memory/translator"
+import * as coresight from "../coresight/coresight"
+import { AccessPortIdRegisterValue, Idcode } from "../adi/adi"
+import MemoryAccessTranslator from "../memory/translator"
 import MemoryAccessor from "../../executor/interpreter/accessor"
 import { ConnectOptions, Target, UiOptions } from "../debugAdapter";
 
 export interface ApInfo
 {
     apsel: number;
-    idr: adiDef.AccessPortIdRegisterValue
+    idr: AccessPortIdRegisterValue
     memAp?: {
         mat: MemoryAccessTranslator
         pidr?: coresight.PidrValue
@@ -17,7 +17,7 @@ export interface ApInfo
 
 export interface TargetInfo
 {
-    dapId: adiDef.Idcode;
+    dapId: Idcode;
     discoveredAps?: ApInfo[];
 }
 

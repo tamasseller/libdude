@@ -1,4 +1,4 @@
-import {Register, Field} from '../../executor/register'
+import {Register, Field} from '../executor/register'
 
 export class FLASH
 {

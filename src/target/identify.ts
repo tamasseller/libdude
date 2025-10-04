@@ -1,7 +1,7 @@
 import { format32 } from "../format";
 import * as mcu from "./mcu";
 
-import { stm32g0 } from "./stm32g0/stm32g0";
+import { stm32g0 } from "../../stm32g0/stm32g0";
 
 export const targetDriverFactories: mcu.TargetDriverFactory[] = 
 [

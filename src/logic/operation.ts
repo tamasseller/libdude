@@ -1,11 +1,12 @@
-import * as dap from '../bits/dap/dap'
+import { DapOperation } from '../dap'
+
 import { Special } from '../../executor/program/statement'
 
 export abstract class LinkOperation {}
 
 export class TransferOperation extends LinkOperation
 {
-    constructor(readonly ops: dap.Operation[]) { super() }
+    constructor(readonly ops: DapOperation[]) { super() }
 }
 
 export abstract class LinkManagementOperation extends LinkOperation

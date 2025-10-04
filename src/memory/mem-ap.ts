@@ -34,7 +34,7 @@ interface AccessSetup
 export class AhbLiteAp implements MemoryAccessTranslator
 {
     readonly map: adi.MemoryAccessPort;
-    private readonly bankedDataRegisters: [adi.Register, adi.Register, adi.Register, adi.Register];
+    private readonly bankedDataRegisters: [adi.AdiRegister, adi.AdiRegister, adi.AdiRegister, adi.AdiRegister];
 
     private tar?: number
     private csw?: number
@@ -73,9 +73,9 @@ export class AhbLiteAp implements MemoryAccessTranslator
         }
     }
 
-    private applySetup(setup: AccessSetup, fail: (e: Error) => void, trackCount?: number): ops.Operation[]
+    private applySetup(setup: AccessSetup, fail: (e: Error) => void, trackCount?: number): adi.AdiOperation[]
     {
-        const ret: ops.Operation[] = [];
+        const ret: adi.AdiOperation[] = [];
 
         if(this.tar !== setup.address)
         {
@@ -105,12 +105,12 @@ export class AhbLiteAp implements MemoryAccessTranslator
     private static alignSequencer(
         start: number, 
         end: number, 
-        access8: (address: number, offset: number, last: boolean) => ops.Operation[], 
-        access16: (address: number, offset: number, last: boolean) => ops.Operation[], 
-        accessBlock: (address: number, offset: number, count: number, last: boolean) => ops.Operation[]
-    ): ops.Operation[]
+        access8: (address: number, offset: number, last: boolean) => adi.AdiOperation[], 
+        access16: (address: number, offset: number, last: boolean) => adi.AdiOperation[], 
+        accessBlock: (address: number, offset: number, count: number, last: boolean) => adi.AdiOperation[]
+    ): adi.AdiOperation[]
     {
-        const ret: ops.Operation[] = [];
+        const ret: adi.AdiOperation[] = [];
         let p = start;
 
         if (p & 1) 
@@ -181,11 +181,11 @@ export class AhbLiteAp implements MemoryAccessTranslator
         return v >> ((address & 0x03) << 3);
     }
 
-    private mapSequential(cmd: MemoryAccess): ops.Operation[]
+    private mapSequential(cmd: MemoryAccess): adi.AdiOperation[]
     {
         switch(cmd.action)
         {
-            case dap.Action.WRITE:
+            case dap.DapAction.WRITE:
             {
                 const w = cmd as WriteMemory
 
@@ -234,7 +234,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
                 )
             }
 
-            case dap.Action.READ:
+            case dap.DapAction.READ:
             {
                 const r = cmd as ReadMemory
                 const buff = Buffer.alloc(r.length)
@@ -292,7 +292,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
                 )
             }
             
-            case dap.Action.WAIT:
+            case dap.DapAction.WAIT:
             {
                 const a = cmd as WaitMemory
 
@@ -340,7 +340,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
         }
     }
 
-    private mapRandom(range: [number, number], cmds: MemoryAccess[]): ops.Operation[]
+    private mapRandom(range: [number, number], cmds: MemoryAccess[]): adi.AdiOperation[]
     {
         const base = 
             (this.tar !== undefined 
@@ -362,7 +362,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
 
                 switch(cmd.action)
                 {
-                    case dap.Action.WRITE:
+                    case dap.DapAction.WRITE:
                     {
                         const w = cmd as WriteMemory
                         const done = this.observer 
@@ -382,7 +382,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
                         )
                     }
 
-                    case dap.Action.READ:
+                    case dap.DapAction.READ:
                     {
                         const r = cmd as ReadMemory
                         const done = this.observer 
@@ -405,7 +405,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
                         )
                     }
                     
-                    case dap.Action.WAIT:
+                    case dap.DapAction.WAIT:
                     {
                         const a = cmd as WaitMemory
 
@@ -485,9 +485,9 @@ export class AhbLiteAp implements MemoryAccessTranslator
         })
     }
 
-    public translate(rawCmds: MemoryAccess[]): ops.Operation[]
+    public translate(rawCmds: MemoryAccess[]): adi.AdiOperation[]
     {
-        const ret: ops.Operation[] = []
+        const ret: adi.AdiOperation[] = []
 
         const cmds = AhbLiteAp.coalesceSequential(rawCmds);
 

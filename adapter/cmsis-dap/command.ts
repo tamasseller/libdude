@@ -1,4 +1,4 @@
-import { format32 } from '../../format';
+import { format32 } from '../../src/format';
 import * as proto from './protocol'
 
 
