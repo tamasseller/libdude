@@ -2,9 +2,9 @@ import assert from "assert";
 
 import * as mcu from "../src/target/mcu";
 
-import { ApClass } from "../src/adi/adi.ts";
-import { Jep106_Manufacturer } from "../src/coresight/jep106.ts";
-import { StPartNumbers } from '../src/coresight/pidrPartNumbers.ts'
+import { ApClass } from "../src/adi.ts";
+import { Jep106_Manufacturer } from "../src/data/jep106.ts";
+import { StPartNumbers } from '../src/data/pidrPartNumbers.ts'
 
 import { fastProgram, massErase, normalProgram } from "./stm32g0flash.ts";
 import { DeviceSignature, partName, identifyPackage, sramSizeKb } from "./stm32g0identity.ts";
@@ -14,7 +14,7 @@ import MemoryAccessor from "../executor/interpreter/accessor.ts";
 import Interpreter from "../executor/interpreter/intepreter.ts";
 import { LoadStoreWidth } from "../executor/program/common.ts";
 import { Constant } from "../executor/program/expression.ts";
-import { CortexM0 } from "../src/cm0/cm0ops.ts";
+import { CortexM0 } from "../src/cm0";
 import { DebugObserver } from "../executor/interpreter/observer.ts";
 import Procedure from "../executor/program/procedure.ts";
 

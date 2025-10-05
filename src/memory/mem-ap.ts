@@ -1,8 +1,7 @@
 import assert from "node:assert";
 
-import * as adi from '../adi/defs'
-import * as ops from '../adi/operations'
-import * as dap from '../dap/dap'
+import { CSWMask, MemoryAccessPort, AdiRegister, AdiOperation } from '../adi'
+import { DapAction } from '../dap'
 
 import { MemoryAccess, WriteMemory, ReadMemory, WaitMemory } from "./operations";
 import MemoryAccessTranslator, { MemoryAccessObserver } from "./translator";
@@ -14,13 +13,13 @@ const enum AccessWidth
 
 function getCswValue(mode: AccessWidth, increment: boolean) 
 {
-    const bloat = adi.CSWMask.DBGSTATUS | adi.CSWMask.RESERVED | adi.CSWMask.HPROT1 | adi.CSWMask.MASTERTYPE
+    const bloat = CSWMask.DBGSTATUS | CSWMask.RESERVED | CSWMask.HPROT1 | CSWMask.MASTERTYPE
 
     switch(mode)
     {
-        case AccessWidth.Byte:        return bloat | adi.CSWMask.SIZE_8 | (increment ? adi.CSWMask.ADDRINC_SINGLE : 0)
-        case AccessWidth.HalfWord:    return bloat | adi.CSWMask.SIZE_16 | (increment ? adi.CSWMask.ADDRINC_SINGLE : 0)
-        case AccessWidth.Word:        return bloat | adi.CSWMask.SIZE_32 | (increment ? adi.CSWMask.ADDRINC_SINGLE : 0)
+        case AccessWidth.Byte:        return bloat | CSWMask.SIZE_8 | (increment ? CSWMask.ADDRINC_SINGLE : 0)
+        case AccessWidth.HalfWord:    return bloat | CSWMask.SIZE_16 | (increment ? CSWMask.ADDRINC_SINGLE : 0)
+        case AccessWidth.Word:        return bloat | CSWMask.SIZE_32 | (increment ? CSWMask.ADDRINC_SINGLE : 0)
     }
 }
 
@@ -33,14 +32,14 @@ interface AccessSetup
 
 export class AhbLiteAp implements MemoryAccessTranslator
 {
-    readonly map: adi.MemoryAccessPort;
-    private readonly bankedDataRegisters: [adi.AdiRegister, adi.AdiRegister, adi.AdiRegister, adi.AdiRegister];
+    readonly map: MemoryAccessPort;
+    private readonly bankedDataRegisters: [AdiRegister, AdiRegister, AdiRegister, AdiRegister];
 
     private tar?: number
     private csw?: number
 
     constructor(apsel: number, readonly observer?: MemoryAccessObserver) {
-        this.map = new adi.MemoryAccessPort(apsel);
+        this.map = new MemoryAccessPort(apsel);
         this.bankedDataRegisters = [
             this.map.BD0,
             this.map.BD1,
@@ -53,29 +52,29 @@ export class AhbLiteAp implements MemoryAccessTranslator
     {
         assert(this.tar !== undefined && this.csw !== undefined)
 
-        if(this.csw & adi.CSWMask.ADDRINC_SINGLE)
+        if(this.csw & CSWMask.ADDRINC_SINGLE)
         {
             const size = this.csw & 3;
 
-            if(size == adi.CSWMask.SIZE_8)
+            if(size == CSWMask.SIZE_8)
             {
                 this.tar += count;
             }
-            else if(size == adi.CSWMask.SIZE_16)
+            else if(size == CSWMask.SIZE_16)
             {
                 this.tar += count * 2;
             }
             else
             {
-                assert(size == adi.CSWMask.SIZE_32)
+                assert(size == CSWMask.SIZE_32)
                 this.tar += count * 4;
             }
         }
     }
 
-    private applySetup(setup: AccessSetup, fail: (e: Error) => void, trackCount?: number): adi.AdiOperation[]
+    private applySetup(setup: AccessSetup, fail: (e: Error) => void, trackCount?: number): AdiOperation[]
     {
-        const ret: adi.AdiOperation[] = [];
+        const ret: AdiOperation[] = [];
 
         if(this.tar !== setup.address)
         {
@@ -83,7 +82,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
             this.tar = setup.address
         }
 
-        const currentlyIncrements = !!((this.csw ?? 0) & adi.CSWMask.ADDRINC_SINGLE);
+        const currentlyIncrements = !!((this.csw ?? 0) & CSWMask.ADDRINC_SINGLE);
         const cswExp = getCswValue(setup.mode, setup.increment ?? currentlyIncrements)
 
         if(this.csw !== cswExp)
@@ -105,12 +104,12 @@ export class AhbLiteAp implements MemoryAccessTranslator
     private static alignSequencer(
         start: number, 
         end: number, 
-        access8: (address: number, offset: number, last: boolean) => adi.AdiOperation[], 
-        access16: (address: number, offset: number, last: boolean) => adi.AdiOperation[], 
-        accessBlock: (address: number, offset: number, count: number, last: boolean) => adi.AdiOperation[]
-    ): adi.AdiOperation[]
+        access8: (address: number, offset: number, last: boolean) => AdiOperation[], 
+        access16: (address: number, offset: number, last: boolean) => AdiOperation[], 
+        accessBlock: (address: number, offset: number, count: number, last: boolean) => AdiOperation[]
+    ): AdiOperation[]
     {
-        const ret: adi.AdiOperation[] = [];
+        const ret: AdiOperation[] = [];
         let p = start;
 
         if (p & 1) 
@@ -181,11 +180,11 @@ export class AhbLiteAp implements MemoryAccessTranslator
         return v >> ((address & 0x03) << 3);
     }
 
-    private mapSequential(cmd: MemoryAccess): adi.AdiOperation[]
+    private mapSequential(cmd: MemoryAccess): AdiOperation[]
     {
         switch(cmd.action)
         {
-            case dap.DapAction.WRITE:
+            case DapAction.WRITE:
             {
                 const w = cmd as WriteMemory
 
@@ -234,7 +233,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
                 )
             }
 
-            case dap.DapAction.READ:
+            case DapAction.READ:
             {
                 const r = cmd as ReadMemory
                 const buff = Buffer.alloc(r.length)
@@ -292,7 +291,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
                 )
             }
             
-            case dap.DapAction.WAIT:
+            case DapAction.WAIT:
             {
                 const a = cmd as WaitMemory
 
@@ -340,7 +339,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
         }
     }
 
-    private mapRandom(range: [number, number], cmds: MemoryAccess[]): adi.AdiOperation[]
+    private mapRandom(range: [number, number], cmds: MemoryAccess[]): AdiOperation[]
     {
         const base = 
             (this.tar !== undefined 
@@ -362,7 +361,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
 
                 switch(cmd.action)
                 {
-                    case dap.DapAction.WRITE:
+                    case DapAction.WRITE:
                     {
                         const w = cmd as WriteMemory
                         const done = this.observer 
@@ -382,7 +381,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
                         )
                     }
 
-                    case dap.DapAction.READ:
+                    case DapAction.READ:
                     {
                         const r = cmd as ReadMemory
                         const done = this.observer 
@@ -405,7 +404,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
                         )
                     }
                     
-                    case dap.DapAction.WAIT:
+                    case DapAction.WAIT:
                     {
                         const a = cmd as WaitMemory
 
@@ -485,9 +484,9 @@ export class AhbLiteAp implements MemoryAccessTranslator
         })
     }
 
-    public translate(rawCmds: MemoryAccess[]): adi.AdiOperation[]
+    public translate(rawCmds: MemoryAccess[]): AdiOperation[]
     {
-        const ret: adi.AdiOperation[] = []
+        const ret: AdiOperation[] = []
 
         const cmds = AhbLiteAp.coalesceSequential(rawCmds);
 

@@ -1,8 +1,8 @@
 import assert from 'assert';
 
-import * as MemoryAccess from "../memory/operations";
+import * as MemoryAccess from "./memory/operations";
 
-import {Jep106_Manufacturer} from './jep106'
+import {Jep106_Manufacturer} from './data/jep106'
 
 export const enum CidrClass
 {
@@ -47,12 +47,6 @@ export function parsePidr(pidrh: number, pidrl: number): PidrValue
         part: pidrl & PIDRL_PN_MASK,
     }
 }
-
-
-export interface MemoryReader
-{
-    read(address: number, length: number): Promise<Buffer>
-};
 
 function consolidateCidrPidr(raw: Buffer): Uint32Array
 {

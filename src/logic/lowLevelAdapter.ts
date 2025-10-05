@@ -1,6 +1,6 @@
-import * as adiDef from '../adi/defs'
+import * as adiDef from '../adi'
 import * as memAp from '../memory/mem-ap'
-import * as coreSight from '../coresight/coresight'
+import * as coreSight from '../coresight'
 
 import * as mcu from '../target/mcu'
 import * as target from '../target/identify'
@@ -10,7 +10,7 @@ import * as operation from './operation'
 import { MemoryAccessScheduler } from './scheduler'
 import MemoryTracer from '../memory/trace'
 import { ConnectOptions, DebugAdapter, Target, UiOptions } from '../debugAdapter'
-import { Pager } from '../adi/pager'
+import { Pager } from '../pager'
 
 class DebugAccessOperation
 {

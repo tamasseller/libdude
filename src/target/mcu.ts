@@ -1,5 +1,5 @@
 import * as coresight from "../coresight/coresight"
-import { AccessPortIdRegisterValue, Idcode } from "../adi/adi"
+import { AccessPortIdRegisterValue, Idcode } from "../adi"
 import MemoryAccessTranslator from "../memory/translator"
 import MemoryAccessor from "../../executor/interpreter/accessor"
 import { ConnectOptions, Target, UiOptions } from "../debugAdapter";

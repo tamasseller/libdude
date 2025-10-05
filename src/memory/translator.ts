@@ -1,4 +1,4 @@
-import { AdiOperation } from "../adi/adi";
+import { AdiOperation } from "../adi";
 import { MemoryAccess } from "./operations";
 
 export interface MemoryAccessObserver {

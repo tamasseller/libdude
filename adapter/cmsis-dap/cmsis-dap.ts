@@ -12,7 +12,7 @@ import assert from 'assert';
 import { UiOptions } from '../../src/debugAdapter';
 import { promisify } from 'util';
 import { bytes, format16 } from '../../src/format';
-import { DapAction, DapDp, DapError, DapRead, DapWait, DapWrite } from "../../src/dap/dap";
+import { DapAction, DapDp, DapError, DapRead, DapWait, DapWrite } from "../../src/dap";
 
 export const DEFAULT_CLOCK_FREQUENCY = 10000000;
 

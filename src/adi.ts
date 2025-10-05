@@ -1,7 +1,7 @@
 import assert from 'node:assert'
 
-import { DapAction, DapPort, DapDp } from '../dap'
-import { format32 } from '../format'
+import { DapAction, DapPort, DapDp } from './dap'
+import { format32 } from './format'
 
 /**
  * As per ARM IHI 0031G (ID022122) Arm® Debug Interface Architecture Specification 

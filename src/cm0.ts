@@ -1,10 +1,88 @@
-import { CoreState, Processor, SystemMemory, UiOptions } from "../debugAdapter";
-import { Invocation } from "../../executor/executor";
-import Interpreter from "../../executor/interpreter/intepreter";
-import * as logic from "../logic/operation";
-import { CoreRegister } from "./cm0def";
-import { DHCSR, DEMCR, DCRDR, DCRSR, AIRCR } from "./cm0hw";
-import Procedure from "../../executor/program/procedure";
+import { Invocation } from "../executor/executor";
+import Interpreter from "../executor/interpreter/intepreter";
+import Procedure from "../executor/program/procedure";
+import { Register, Field } from "../executor/register";
+import { CoreState, Processor, SystemMemory, UiOptions } from "./debugAdapter";
+
+import { reset, delay } from "./logic/operation";
+
+export const enum CoreRegister 
+{
+    R0   = 0b00000,
+    R1   = 0b00001,
+    R2   = 0b00010,
+    R3   = 0b00011,
+    R4   = 0b00100,
+    R5   = 0b00101,
+    R6   = 0b00110,
+    R7   = 0b00111,
+    R8   = 0b01000,
+    R9   = 0b01001,
+    R10  = 0b01010,
+    R11  = 0b01011,
+    R12  = 0b01100,
+    SP   = 0b01101,
+    LR   = 0b01110,
+    PC   = 0b01111,
+    xPSR = 0b10000,
+    MSP  = 0b10001,
+    PSP  = 0b10010
+}
+
+export const DFSR = new class DFSR extends Register<DFSR> {
+    constructor() { super(0xE000ED30); }
+    readonly HALTED = new Field<DFSR, false>(1, 0);
+    readonly BKPT = new Field<DFSR, false>(1, 1);
+    readonly DWTTRAP = new Field<DFSR, false>(1, 2);
+    readonly VCATCH = new Field<DFSR, false>(1, 3);
+    readonly EXTERNAL = new Field<DFSR, false>(1, 4);
+};
+
+export const DHCSR = new class DHCSR extends Register<DHCSR> {
+    constructor() { super(0xE000EDF0); }
+
+    readonly C_DEBUGEN = new Field<DHCSR, true>(1, 0);
+    readonly C_HALT = new Field<DHCSR, true>(1, 1);
+    readonly C_STEP = new Field<DHCSR, true>(1, 2);
+    readonly C_MASKINTS = new Field<DHCSR, true>(1, 3);
+    readonly C_SNAPSTALL = new Field<DHCSR, true>(1, 5);
+    readonly S_REGRDY = new Field<DHCSR, false>(1, 16);
+    readonly S_HALT = new Field<DHCSR, false>(1, 17);
+    readonly S_SLEEP = new Field<DHCSR, false>(1, 18);
+    readonly S_LOCKUP = new Field<DHCSR, false>(1, 19);
+    readonly S_RETIRE_ST = new Field<DHCSR, false>(1, 24);
+    readonly S_RESET_ST = new Field<DHCSR, false>(1, 25);
+    readonly DBGKEY = new Field<DHCSR, true>(16, 16);
+
+    readonly DBGKEY_VALUE = 0xA05F;
+};
+
+export const DCRSR = new class DCRSR extends Register<DCRSR> {
+    constructor() { super(0xE000EDF4); }
+    readonly REGWnR = new Field<DCRSR, true>(1, 16);
+    readonly REGSEL = new Field<DCRSR, true>(5, 0);
+};
+
+export const DCRDR = new class DCRDR extends Register<DCRDR> {
+    constructor() { super(0xE000EDF8); }
+};
+
+export const DEMCR = new class DEMCR extends Register<DEMCR> {
+    constructor() { super(0xE000EDFC); }
+    readonly CORERESET = new Field<DEMCR, true>(1, 0);
+    readonly HARDERR = new Field<DEMCR, true>(1, 10);
+    readonly DWTENA = new Field<DEMCR, true>(1, 24);
+};
+
+export const AIRCR = new class AIRCR extends Register<AIRCR> {
+    constructor() { super(0xE000ED0C); }
+    readonly VECTRESET     = new Field<AIRCR, true>(1, 0);
+    readonly VECTCLRACTIVE = new Field<AIRCR, true>(1, 1);
+    readonly SYSRESETREQ   = new Field<AIRCR, true>(1, 2);
+    readonly VECTKEY       = new Field<AIRCR, true>(16, 16);
+    readonly VECTKEY_VALUE = 0x05FA;
+};
+
 
 export const writeReg = Procedure.build($ => 
 {
@@ -105,7 +183,7 @@ export class CortexM0
                     /*
                      * Assert hardware reset line
                      */
-                    $.add(logic.reset(true, r => { throw new Error(`Assert nRST failed`, { cause: r }); }))
+                    $.add(reset(true, r => { throw new Error(`Assert nRST failed`, { cause: r }); }))
 
                     /*
                      * Trap reset vector if halt is requested
@@ -134,10 +212,10 @@ export class CortexM0
                     )
 
                     /* Release nRST */
-                    $.add(logic.reset(false, r_3 => { throw new Error(`Deassert nRST failed`, { cause: r_3 }); }))
+                    $.add(reset(false, r_3 => { throw new Error(`Deassert nRST failed`, { cause: r_3 }); }))
 
                     /* Leave the target alone for 10ms to allow the reset to complete */
-                    $.add(logic.delay(10000, r_4 => { throw new Error(`Wait 10ms for reset to complete failed`, { cause: r_4 }); }))
+                    $.add(delay(10000, r_4 => { throw new Error(`Wait 10ms for reset to complete failed`, { cause: r_4 }); }))
 
                     /* Wait until the reset is actually completed */
                     $.add(DHCSR.wait(DHCSR.S_RESET_ST.is(false)))
