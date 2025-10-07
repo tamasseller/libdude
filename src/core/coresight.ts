@@ -1,8 +1,8 @@
 import assert from 'assert';
 
-import * as MemoryAccess from "./memory/operations";
 
-import {Jep106_Manufacturer} from './data/jep106'
+import {Jep106_Manufacturer} from '../data/jep106'
+import { MemoryAccess, ReadMemory } from './memory/operations';
 
 export const enum CidrClass
 {
@@ -76,9 +76,9 @@ export interface BasicRomInfo
 export function readCidrPidr(
     base: number, 
     done: (info?: BasicRomInfo) => void, 
-    fail: (e: Error) => void): MemoryAccess.MemoryAccess
+    fail: (e: Error) => void): MemoryAccess
 {
-    return new MemoryAccess.ReadMemory((base + 0xfd0) >>> 0, 48, data => {
+    return new ReadMemory((base + 0xfd0) >>> 0, 48, data => {
         const [pidrh, pidrl, cidr] = consolidateCidrPidr(data)
         const cidClass = parseCidr(cidr);
         
@@ -98,9 +98,9 @@ export function readSysmem(
     base: number,
     cidClass: CidrClass,
     done: (sysmem?: boolean) => void, 
-    fail: (e: Error) => void): MemoryAccess.MemoryAccess
+    fail: (e: Error) => void): MemoryAccess
 {
     return cidClass == CidrClass.RomTable 
-        ? new MemoryAccess.ReadMemory((base + 0xfcc) >>> 0, 4, data => done((data.readUInt32LE() & 1) == 1), fail)
-        : new MemoryAccess.ReadMemory((base + 0xfc8) >>> 0, 4, data => done((data.readUInt32LE() & 0x10) == 0x10), fail)
+        ? new ReadMemory((base + 0xfcc) >>> 0, 4, data => done((data.readUInt32LE() & 1) == 1), fail)
+        : new ReadMemory((base + 0xfc8) >>> 0, 4, data => done((data.readUInt32LE() & 0x10) == 0x10), fail)
 }

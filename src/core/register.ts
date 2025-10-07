@@ -1,6 +1,6 @@
 import { assert } from "console";
-import { Block, Loop, Statement } from "./program/statement";
-import { Constant, Expression } from "./program/expression";
+import { Block, Loop, Statement } from "../../executor/program/statement";
+import { Constant, Expression } from "../../executor/program/expression";
 
 export class Register<R extends Register<R>> {
     constructor(readonly address: number) {

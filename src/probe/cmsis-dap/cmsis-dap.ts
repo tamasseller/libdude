@@ -6,13 +6,13 @@ import * as command from './command'
 
 import * as usb from 'usb'
 
-import * as ll from '../../src/logic/lowLevelAdapter'
-import * as llOps from '../../src/logic/operation'
 import assert from 'assert';
-import { UiOptions } from '../../src/debugAdapter';
 import { promisify } from 'util';
-import { bytes, format16 } from '../../src/format';
-import { DapAction, DapDp, DapError, DapRead, DapWait, DapWrite } from "../../src/dap";
+import { DapAction, DapDp, DapError, DapRead, DapWait, DapWrite } from "../../core/dap";
+import { bytes, format16 } from "../../format";
+import { DelayOperation, LinkDriverSetupOperation, LinkDriverShutdownOperation, LinkTargetConnectOperation, Probe, ProbeOperation, ResetLineOperation, TransferOperation, UiOperation } from "../probe";
+import { UiOptions } from "../../core/debugAdapter";
+import { ProbeDriver } from "../registry";
 
 export const DEFAULT_CLOCK_FREQUENCY = 10000000;
 
@@ -52,7 +52,8 @@ function convertTransferResponse(resp: protocol.TransferResponse)
     return ret;
 }
 
-export class CmsisDap extends ll.LowLevelAdapter
+@ProbeDriver("CMSIS-DAP", [{vid: 0xc251, pid: 0xf001}])
+export class CmsisDap implements Probe
 {
     private interface: usb.Interface
     private inEp: usb.InEndpoint
@@ -64,9 +65,7 @@ export class CmsisDap extends ll.LowLevelAdapter
     private maxPacketSize: number = 64
     private hasAtomic: boolean = false
 
-    constructor(log: UiOptions, private readonly usbDev: usb.Device) {
-        super(log)
-    }
+    constructor(readonly log: UiOptions, private readonly usbDev: usb.Device) {}
     
     pktCounter = 0;
     protected sendPacket(p: command.Command): void 
@@ -91,7 +90,7 @@ export class CmsisDap extends ll.LowLevelAdapter
         })
     }
 
-    override async claim(): Promise<string>
+    async claim(): Promise<string>
     {
         const idxs = [
             this.usbDev.deviceDescriptor.iManufacturer, 
@@ -151,12 +150,12 @@ export class CmsisDap extends ll.LowLevelAdapter
         })
     }
     
-    protected lowLevelExecute(ops: llOps.LinkOperation[]): void 
+    execute(ops: ProbeOperation[]): void 
     {
         const cmds: command.Command[] = []
         
         ops.forEach(top => {
-            if(top instanceof llOps.TransferOperation)
+            if(top instanceof TransferOperation)
             {
                 top.ops.map(o => {
                     switch(o.direction)
@@ -267,7 +266,7 @@ export class CmsisDap extends ll.LowLevelAdapter
                     }
                 })
             }
-            else if(top instanceof llOps.LinkDriverSetupOperation)
+            else if(top instanceof LinkDriverSetupOperation)
             {
                 cmds.push(
                     /* Clean up potential previous state */
@@ -289,7 +288,7 @@ export class CmsisDap extends ll.LowLevelAdapter
                     })
                 );
             }
-            else if(top instanceof llOps.LinkTargetConnectOperation)
+            else if(top instanceof LinkTargetConnectOperation)
             {
                 cmds.push(
                     new command.SwjSequenceCommand(
@@ -306,13 +305,13 @@ export class CmsisDap extends ll.LowLevelAdapter
                     )
                 )
             }
-            else if(top instanceof llOps.LinkDriverShutdownOperation )
+            else if(top instanceof LinkDriverShutdownOperation )
             {
                 cmds.push(new command.DisconnectCommand(r => { 
                     if (r != protocol.Response.OK) top.fail(new Error(`Disconnect failed`, { cause: r })) 
                 }));
             }
-            else if(top instanceof llOps.UiOperation)
+            else if(top instanceof UiOperation)
             {
                 if(top.args.CONNECT !== undefined)
                 {
@@ -329,11 +328,11 @@ export class CmsisDap extends ll.LowLevelAdapter
                     }));
                 }
             }
-            else if(top instanceof llOps.DelayOperation)
+            else if(top instanceof DelayOperation)
             {
                 cmds.push(new command.DelayCommand(top.timeUs, () => {}));
             }
-            else if(top instanceof llOps.ResetLineOperation)
+            else if(top instanceof ResetLineOperation)
             {
                 const desired = top.assert ? 0 : protocol.SwjPinMask.nReset
                 cmds.push(new command.SwjPinsCommand(desired, protocol.SwjPinMask.nReset, 20, r => {

@@ -1,10 +1,10 @@
-import { Invocation } from "../executor/executor";
-import Interpreter from "../executor/interpreter/intepreter";
-import Procedure from "../executor/program/procedure";
-import { Register, Field } from "../executor/register";
+import { Invocation } from "../../executor/executor";
+import Interpreter from "../../executor/interpreter/intepreter";
+import Procedure from "../../executor/program/procedure";
+import { Register, Field } from "./register";
 import { CoreState, Processor, SystemMemory, UiOptions } from "./debugAdapter";
 
-import { reset, delay } from "./logic/operation";
+import { reset, delay } from "../logic/operation";
 
 export const enum CoreRegister 
 {

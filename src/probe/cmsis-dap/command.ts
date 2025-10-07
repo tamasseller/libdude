@@ -1,6 +1,5 @@
-import { format32 } from '../../src/format';
+import { format32 } from '../../format';
 import * as proto from './protocol'
-
 
 import assert from "assert";
 

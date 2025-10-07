@@ -1,15 +1,20 @@
-import { DapOperation } from '../dap'
+import { DapOperation } from "../core/dap"
 
-import { Special } from '../../executor/program/statement'
+export abstract class ProbeOperation {}
 
-export abstract class LinkOperation {}
+export interface Probe
+{
+    start(): Promise<string>
+    stop(): Promise<void>
+    execute(ops: ProbeOperation[]): void
+}
 
-export class TransferOperation extends LinkOperation
+export class TransferOperation extends ProbeOperation
 {
     constructor(readonly ops: DapOperation[]) { super() }
 }
 
-export abstract class LinkManagementOperation extends LinkOperation
+export abstract class LinkManagementOperation extends ProbeOperation
 {
     constructor(readonly fail: (e: Error) => void) { super() }   
 }
@@ -60,15 +65,9 @@ export class DelayOperation extends LinkManagementOperation
     }
 }
 
-export const delay = (timeUs: number, fail: (e: Error) => void = (e) => {throw e}) => 
-    new Special(new DelayOperation(timeUs, fail))
-
 export class ResetLineOperation extends LinkManagementOperation
 {
     constructor(readonly assert: boolean, fail: (e: Error) => void) {
         super(fail)
     }
 }
-
-export const reset = (assert: boolean, fail: (e: Error) => void = (e) => {throw e}) => 
-    new Special(new ResetLineOperation(assert, fail))

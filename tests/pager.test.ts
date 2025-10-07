@@ -1,5 +1,5 @@
-import { Pager } from '../src/adi/pager';
-import { DebugPort, MemoryAccessPort, CSWMask } from '../src/adi/defs';
+import { Pager } from '../src/core/pager';
+import { DebugPort, MemoryAccessPort, CSWMask } from '../src/core/adi';
 
 import test, { suite } from 'node:test';
 import assert from 'node:assert';

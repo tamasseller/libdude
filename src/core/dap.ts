@@ -1,4 +1,4 @@
-import { format32 } from "./format";
+import { format32 } from "../format";
 
 export type DapPort = number | null
 

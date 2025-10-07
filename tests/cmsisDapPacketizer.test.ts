@@ -1,6 +1,6 @@
-import * as command from '../adapter/cmsis-dap/command';
-import { packetize } from '../adapter/cmsis-dap/packetize';
-import * as protocol from '../adapter/cmsis-dap/protocol';
+import * as command from '../src/probe/cmsis-dap/command';
+import { packetize } from '../src/probe/cmsis-dap/packetize';
+import * as protocol from '../src/probe/cmsis-dap/protocol';
 
 import test, { suite } from 'node:test';
 import assert from 'node:assert';

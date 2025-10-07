@@ -1,6 +1,14 @@
 import assert from "assert";
-import { MemoryAccess, ReadMemory, WaitMemory, WriteMemory } from "../memory/operations";
+import { MemoryAccess, ReadMemory, WaitMemory, WriteMemory } from "./memory/operations";
 import MemoryAccessor from "../../executor/interpreter/accessor";
+import { Special } from "../../executor/program/statement";
+import { DelayOperation, ResetLineOperation } from "../probe/probe";
+
+export const delay = (timeUs: number, fail: (e: Error) => void = (e) => {throw e}) => 
+    new Special(new DelayOperation(timeUs, fail))
+
+export const reset = (assert: boolean, fail: (e: Error) => void = (e) => {throw e}) => 
+    new Special(new ResetLineOperation(assert, fail))
 
 interface PendingAccess
 {
