@@ -15,12 +15,13 @@ export interface TraceConfig
     memoryAccessTrace?: MessagePrinter
     dapTrace?: MessagePrinter
     packetTrace?: MessagePrinter
+    operationTrace: MessagePrinter
 }
 
 export const defaultTraceConfig: TraceConfig = {
     error: msg => console.error(msg),
     informational: msg => console.error(msg),
-}
+} as const
 
 export function interpreterLog(trace: TraceConfig): Log
 {
@@ -55,5 +56,14 @@ export function probeLog(trace: TraceConfig): Log
         err: trace.error,
         inf: trace.informational ?? (() => {}),
         dbg: trace.packetTrace ?? (() => {})
+    }
+}
+
+export function operationLog(trace: TraceConfig): Log
+{
+    return {
+        err: trace.error,
+        inf: trace.informational ?? (() => {}),
+        dbg: trace.operationTrace ?? (() => {})
     }
 }

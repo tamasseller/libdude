@@ -1,7 +1,7 @@
+import { format32 } from "../format";
 import { Chunk } from "./chunk";
-import { format32 } from "./io";
 
-export default class Image 
+export class Image 
 {
     constructor(
         readonly segments: Chunk[],

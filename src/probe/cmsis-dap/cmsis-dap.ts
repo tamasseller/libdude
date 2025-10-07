@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { DapAction, DapDp, DapError, DapRead, DapWait, DapWrite } from "../../core/dap";
 import { bytes, format16 } from "../../format";
 import { DelayOperation, LinkDriverSetupOperation, LinkDriverShutdownOperation, LinkTargetConnectOperation, Probe, ProbeOperation, ResetLineOperation, TransferOperation, UiOperation } from "../probe";
-import { UiOptions } from "../../core/debugAdapter";
+import { UiOptions } from "../../core/target";
 import { ProbeDriver } from "../registry";
 
 export const DEFAULT_CLOCK_FREQUENCY = 10000000;
@@ -90,7 +90,7 @@ export class CmsisDap implements Probe
         })
     }
 
-    async claim(): Promise<string>
+    async start(): Promise<string>
     {
         const idxs = [
             this.usbDev.deviceDescriptor.iManufacturer, 
@@ -351,7 +351,7 @@ export class CmsisDap implements Probe
         packetize(cmds, this.maxPacketSize, this.hasAtomic).forEach(p => this.sendPacket(p))
     }
 
-    async release(): Promise<void> {
+    async stop(): Promise<void> {
         await this.interface.releaseAsync();
 
         if (this.reattachKernelDriver) {

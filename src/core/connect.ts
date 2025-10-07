@@ -1,10 +1,10 @@
 import { dapLog, defaultTraceConfig, TraceConfig } from "../log"
-import { LinkDriverSetupOperation, LinkTargetConnectOperation, Probe, ResetLineOperation, UiOperation } from "../probe/probe"
+import { LinkDriverSetupOperation, LinkDriverShutdownOperation, LinkTargetConnectOperation, Probe, ResetLineOperation, UiOperation } from "../probe/probe"
 import { Adapter } from "./adapter"
 import { AbortMask, accessPortIdRegister, AccessPortIdRegisterValue, AdiOperation, ApClass, CtrlStatMask, DebugPort, MemApType, MemoryAccessPort, parseBase, parseIdcode, parseIdr } from "./adi"
 import { AhbLiteAp } from "./ahbLiteAp"
 import { BasicRomInfo, PidrValue, readCidrPidr, readSysmem } from "./coresight"
-import { Target } from "./debugAdapter"
+import { Target } from "./target"
 import MemoryTracer from "./memory/trace"
 import MemoryAccessTranslator from "./memory/translator"
 import { MemoryAccessScheduler } from "./scheduler"
@@ -35,6 +35,12 @@ export interface ConnectOptions
     [x: string]: unknown
 }
 
+export const defaultConnectOptions: ConnectOptions = 
+{
+    underReset: true,
+    halt: true
+}
+
 export interface ApInfo
 {
     apsel: number;
@@ -46,7 +52,7 @@ export interface ApInfo
     }
 }
 
-export async function connect(probe: Probe, opts: ConnectOptions, trace: TraceConfig = defaultTraceConfig): Promise<Target>
+export async function connect(probe: Probe, opts: ConnectOptions = defaultConnectOptions, trace: TraceConfig = defaultTraceConfig): Promise<Target>
 {
     let idcode = 0;
 
@@ -196,4 +202,12 @@ async function processAp(adapter: Adapter, apsel: number, rawIdr: number)
     }
 
     return apInfo
+}
+
+export async function disconnect(probe: Probe): Promise<void>
+{
+    return new Promise<void>((resolve, reject) => probe.execute([
+        new LinkDriverShutdownOperation(reject),
+        new UiOperation({CONNECT: false}, reject, resolve)
+    ]))
 }
