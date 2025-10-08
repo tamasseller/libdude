@@ -1,60 +1,79 @@
-import assert from "assert";
 
-import * as mcu from "../src/target/mcu";
+import { TargetDriver, TargetInfo } from "../driver";
+import { ApClass } from "../../core/adi";
+import { Jep106_Manufacturer } from "../../data/jep106";
+import { StPartNumbers } from "../../data/pidrPartNumbers";
+import { CortexM0 } from "../../core/cm0";
+import { defaultTraceConfig, operationLog } from "../../log";
+import { Processor, SystemMemory, Target, Storage } from "../target";
+import { ConnectOptions } from "../../core/connect";
+import { Adapter } from "../../core/adapter";
+import { DebugObserver } from "../../../executor/interpreter/observer.js";
+import Interpreter from "../../../executor/interpreter/intepreter";
+import { MemoryAccessScheduler } from "../../core/scheduler";
+import { AhbLiteAp } from "../../core/ahbLiteAp";
+import { MemoryTracer } from "../../core/memoryTrace";
+import Procedure from "../../../executor/program/procedure";
+import { DBG, RCC } from "./stm32g0hw";
+import { Constant } from "../../../executor/program/expression";
+import { DeviceSignature, identifyPackage, partName, sramSizeKb } from "./stm32g0identity";
+import { LoadStoreWidth } from "../../../executor/program/common";
 
-import { ApClass } from "../src/adi.ts";
-import { Jep106_Manufacturer } from "../src/data/jep106.ts";
-import { StPartNumbers } from '../src/data/pidrPartNumbers.ts'
-
-import { fastProgram, massErase, normalProgram } from "./stm32g0flash.ts";
-import { DeviceSignature, partName, identifyPackage, sramSizeKb } from "./stm32g0identity.ts";
-import { DBG, RCC } from "./stm32g0hw.ts";
-import { ConnectOptions, CoreState, Target, UiOptions, Storage } from "../src/debugAdapter.ts";
-import MemoryAccessor from "../executor/interpreter/accessor.ts";
-import Interpreter from "../executor/interpreter/intepreter.ts";
-import { LoadStoreWidth } from "../executor/program/common.ts";
-import { Constant } from "../executor/program/expression.ts";
-import { CortexM0 } from "../src/cm0";
-import { DebugObserver } from "../executor/interpreter/observer.ts";
-import Procedure from "../executor/program/procedure.ts";
-
-export const stm32g0: mcu.TargetDriverFactory =
+class CortexMcu
 {
-    name: "STM32G0xx",
-    wouldTake: (ti: mcu.TargetInfo) => {
-        if(ti.discoveredAps?.length === 1) {
-            const ap = ti.discoveredAps[0];
-            
-            return ap.idr.class == ApClass.MEM 
-                && (ap.memAp?.pidr?.designer == Jep106_Manufacturer.STM)
-                && (ap.memAp?.sysmem ?? false) 
-                && ap.memAp?.pidr?.part !== undefined
-                && [
-                    StPartNumbers.STM32G03_4 as number,  
-                    StPartNumbers.STM32G05_6 as number, 
-                    StPartNumbers.STM32G07_8 as number, 
-                    StPartNumbers.STM32G0B_C as number
-                ].includes(ap.memAp.pidr.part)
-        }
+    constructor(
+        readonly description: string,
+        readonly interpreter: Interpreter,
+        readonly cortex: CortexM0
+    ) {}
 
-        return false
-    },
+    get systemMemory(): SystemMemory
+    {
+        return this.cortex.systemMemory
+    }
 
-    prepare: (ti: mcu.TargetInfo) => ({
-        sysMemAp: ti.discoveredAps![0].memAp?.mat!,
-        build: async (
-            log: UiOptions,
-            accessor: MemoryAccessor,
+    get processor(): Processor
+    {
+        return this.cortex.processor
+    }
+}
+
+export class Stm32g0 extends CortexMcu implements Target
+{
+    public static driver = new TargetDriver<Stm32g0>(
+        "stm32g0",
+        (ti: TargetInfo) => 
+        {
+            if(ti.discoveredAps?.length !== 1) return false
+
+            const ap = ti.discoveredAps[0]
+
+            if(ap.idr.class != ApClass.MEM) return false
+            if(ap.memAp?.pidr?.designer != Jep106_Manufacturer.STM) return false
+            if(!(ap.memAp?.sysmem ?? false) && ap.memAp?.pidr?.part === undefined) return false
+
+            return [
+                StPartNumbers.STM32G03_4 as number,  
+                StPartNumbers.STM32G05_6 as number, 
+                StPartNumbers.STM32G07_8 as number, 
+                StPartNumbers.STM32G0B_C as number
+            ].includes(ap.memAp.pidr.part)
+        },
+        async (
+            adapter: Adapter,
             opts: ConnectOptions
         ) => {
-            const interpreterTrace = opts.ui.interpreterTrace
-            const interpreter = new Interpreter(accessor, 
-                interpreterTrace !== undefined
-                ? (args, rets) => new DebugObserver(interpreterTrace, args, rets)
-                : undefined
+            const mao = opts.trace?.memoryAccessTrace !== undefined ? new MemoryTracer(opts.trace.memoryAccessTrace) : undefined
+            const io = opts.trace?.interpreterTrace !== undefined ? (args, rets) => new DebugObserver(opts.trace.interpreterTrace, args, rets) : undefined
+
+            const mat = new AhbLiteAp(0, mao)
+            const accessor = new MemoryAccessScheduler(
+                ops => adapter.execute(...mat.translate(ops)),
+                special => adapter.execute(special)
             )
 
-            const cortex = new CortexM0(log, interpreter)
+            const interpreter = new Interpreter(accessor, io)
+            const cortex = new CortexM0(operationLog(opts.trace).err, interpreter)
 
             await interpreter.run(Procedure.build($ => 
             {
@@ -91,100 +110,100 @@ export const stm32g0: mcu.TargetDriverFactory =
                 $.return(part, pkg, flash)
             }))
         
-            assert(part == ti.discoveredAps![0].memAp!.pidr!.part)
-
             if(256 < flashSizeKb)
             {
-                log.error("Support for dual bank devices is incidental!")
+                (opts.trace ?? defaultTraceConfig).error("Support for dual bank devices is incidental!")
             }
 
-            return new class Stm32g0 implements Target
-            {
-                readonly description =  
-                    `${partName(part)} in ${identifyPackage(part, pkgData)} package`
-                    + ` with ${sramSizeKb(part)} kB RAM and ${flashSizeKb} kB flash`
-
-                readonly systemMemory = cortex.systemMemory
-                readonly processor = cortex.processor
-                readonly storage = new class Stm32g0Storage implements Storage
-                {
-                    wipe = async () => 
-                    {
-                        const coreState = await cortex.processor.getState()
-                        if(coreState !== CoreState.Halted)
-                        {
-                            log.error(`Core is not halted before mass erase`)
-                        }
-
-                        await interpreter.executeOperations(...massErase());
-                    }
-
-                    readonly areas =
-                    [
-                        {
-                            desc: "Option bytes",
-                            base: 0x1fff_7800,
-                            size: 0x50,
-                        },
-                        {
-                            desc: "OTP",
-                            base: 0x1fff_7000,
-                            size: 0x400,
-                        },
-                        {
-                            desc: "Main flash",
-                            base: 0x0800_0000,
-                            size: flashSizeKb * 1024,
-                            write: 
-                            [
-                                {
-                                    desc: "normal",
-                                    eraseSize: 2048,
-                                    programSize: 8,
-                                    perform: async (address, data) => 
-                                    {
-                                        assert((address & 7) === 0)
-                                        assert(0x0800_0000 <= address && address < 0x0800_0000 + flashSizeKb * 1024);
-
-                                        const end = (address + data.byteLength);
-                                        assert((end & 7) === 0)
-                                        assert(0x0800_0000 <= end && end < 0x0800_0000 + flashSizeKb * 1024);
-                                       
-                                        const coreState = await cortex.processor.getState()
-                                        if(coreState !== CoreState.Halted)
-                                        {
-                                            log.error(`Core is not halted before flash programming`)
-                                        }
-
-                                        await interpreter.executeOperations(...normalProgram(address, data))
-                                    }
-                                },
-                                {
-                                    desc: "fast",
-                                    eraseSize: 2048,
-                                    programSize: 256,
-                                    perform: async (address, data) => {
-                                        assert((address & 255) === 0)
-                                        assert(0x0800_0000 <= address && address < 0x0800_0000 + flashSizeKb * 1024);
-
-                                        const end = (address + data.byteLength);
-                                        assert((end & 255) === 0)
-                                        assert(0x0800_0000 <= end && end < 0x0800_0000 + flashSizeKb * 1024);
-                                       
-                                        const coreState = await cortex.processor.getState()
-                                        if(coreState !== CoreState.Halted)
-                                        {
-                                            log.error(`Core is not halted before flash programming`)
-                                        }
-
-                                        await interpreter.executeOperations(...fastProgram(address, data))
-                                    }
-                                }
-                            ]
-                        }
-                    ]
-                }
-            }
+            return new Stm32g0(
+                `${partName(part)} in ${identifyPackage(part, pkgData)} package`
+                + ` with ${sramSizeKb(part)} kB RAM and ${flashSizeKb} kB flash`,
+                interpreter, cortex
+            )
         }
-    })
+    )
+
+    get storage(): Storage
+    {
+        throw "NYET"
+    }
+
+    // readonly storage = new class Stm32g0Storage implements Storage
+    // {
+    //     wipe = async () => 
+    //     {
+    //         const coreState = await cortex.processor.getState()
+    //         if(coreState !== CoreState.Halted)
+    //         {
+    //             log.error(`Core is not halted before mass erase`)
+    //         }
+
+    //         await interpreter.executeOperations(...massErase());
+    //     }
+
+    //     readonly areas =
+    //     [
+    //         {
+    //             desc: "Option bytes",
+    //             base: 0x1fff_7800,
+    //             size: 0x50,
+    //         },
+    //         {
+    //             desc: "OTP",
+    //             base: 0x1fff_7000,
+    //             size: 0x400,
+    //         },
+    //         {
+    //             desc: "Main flash",
+    //             base: 0x0800_0000,
+    //             size: flashSizeKb * 1024,
+    //             write: 
+    //             [
+    //                 {
+    //                     desc: "normal",
+    //                     eraseSize: 2048,
+    //                     programSize: 8,
+    //                     perform: async (address, data) => 
+    //                     {
+    //                         assert((address & 7) === 0)
+    //                         assert(0x0800_0000 <= address && address < 0x0800_0000 + flashSizeKb * 1024);
+
+    //                         const end = (address + data.byteLength);
+    //                         assert((end & 7) === 0)
+    //                         assert(0x0800_0000 <= end && end < 0x0800_0000 + flashSizeKb * 1024);
+                            
+    //                         const coreState = await cortex.processor.getState()
+    //                         if(coreState !== CoreState.Halted)
+    //                         {
+    //                             log.error(`Core is not halted before flash programming`)
+    //                         }
+
+    //                         await interpreter.executeOperations(...normalProgram(address, data))
+    //                     }
+    //                 },
+    //                 {
+    //                     desc: "fast",
+    //                     eraseSize: 2048,
+    //                     programSize: 256,
+    //                     perform: async (address, data) => {
+    //                         assert((address & 255) === 0)
+    //                         assert(0x0800_0000 <= address && address < 0x0800_0000 + flashSizeKb * 1024);
+
+    //                         const end = (address + data.byteLength);
+    //                         assert((end & 255) === 0)
+    //                         assert(0x0800_0000 <= end && end < 0x0800_0000 + flashSizeKb * 1024);
+                            
+    //                         const coreState = await cortex.processor.getState()
+    //                         if(coreState !== CoreState.Halted)
+    //                         {
+    //                             log.error(`Core is not halted before flash programming`)
+    //                         }
+
+    //                         await interpreter.executeOperations(...fastProgram(address, data))
+    //                     }
+    //                 }
+    //             ]
+    //         }
+    //     ]
+    // }
 }

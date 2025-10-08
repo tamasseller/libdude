@@ -2,9 +2,11 @@ import { Invocation } from "../../executor/executor";
 import Interpreter from "../../executor/interpreter/intepreter";
 import Procedure from "../../executor/program/procedure";
 import { Register, Field } from "./register";
-import { CoreState, Processor, SystemMemory, UiOptions } from "./debugAdapter";
 
-import { reset, delay } from "../logic/operation";
+import { CoreState, Processor, SystemMemory } from "../target/target";
+import { Log } from "../log";
+import { Special } from "../../executor/program/statement";
+import { DelayOperation, ResetLineOperation } from "../probe/probe";
 
 export const enum CoreRegister 
 {
@@ -83,7 +85,6 @@ export const AIRCR = new class AIRCR extends Register<AIRCR> {
     readonly VECTKEY_VALUE = 0x05FA;
 };
 
-
 export const writeReg = Procedure.build($ => 
 {
     const [reg, value] = $.args
@@ -120,7 +121,7 @@ export class CortexM0
     protected readonly requestReset: () => Promise<boolean>
     protected readonly waitReset: () => Promise<void>
 
-    constructor(log: UiOptions, interpreter: Interpreter) 
+    constructor(errorLog: (msg: string) => void, interpreter: Interpreter) 
     {
         this.systemMemory = 
         {
@@ -183,7 +184,7 @@ export class CortexM0
                     /*
                      * Assert hardware reset line
                      */
-                    $.add(reset(true, r => { throw new Error(`Assert nRST failed`, { cause: r }); }))
+                    $.add(((assert: boolean, fail: (e: Error) => void = (e) => { throw e; }) => new Special(new ResetLineOperation(assert, fail)))(true, r => { throw new Error(`Assert nRST failed`, { cause: r }); }))
 
                     /*
                      * Trap reset vector if halt is requested
@@ -212,10 +213,10 @@ export class CortexM0
                     )
 
                     /* Release nRST */
-                    $.add(reset(false, r_3 => { throw new Error(`Deassert nRST failed`, { cause: r_3 }); }))
+                    $.add(new Special(new ResetLineOperation(false, r => { throw new Error(`Deassert nRST failed`, { cause: r}); })))
 
                     /* Leave the target alone for 10ms to allow the reset to complete */
-                    $.add(delay(10000, r_4 => { throw new Error(`Wait 10ms for reset to complete failed`, { cause: r_4 }); }))
+                    $.add(new Special(new DelayOperation(10000, r => { throw new Error(`Wait 10ms for reset to complete failed`, { cause: r }); })))
 
                     /* Wait until the reset is actually completed */
                     $.add(DHCSR.wait(DHCSR.S_RESET_ST.is(false)))
@@ -230,12 +231,12 @@ export class CortexM0
                 
                 if (!nrstWorks) 
                 {
-                    log.error("NRST is dysfunctional, executed soft reset instead");
+                    errorLog("NRST is dysfunctional, executed soft reset instead");
                 }
 
                 if(halt && this.decodeCoreState(dhcsr) !== CoreState.Halted) 
                 {
-                    log.error("Halting reset was requested but the processor is not halted after the operation");
+                    errorLog("Halting reset was requested but the processor is not halted after the operation");
                 }
             }
         };

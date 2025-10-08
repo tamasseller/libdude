@@ -15,7 +15,7 @@ export interface TraceConfig
     memoryAccessTrace?: MessagePrinter
     dapTrace?: MessagePrinter
     packetTrace?: MessagePrinter
-    operationTrace: MessagePrinter
+    operationTrace?: MessagePrinter
 }
 
 export const defaultTraceConfig: TraceConfig = {
@@ -23,7 +23,7 @@ export const defaultTraceConfig: TraceConfig = {
     informational: msg => console.error(msg),
 } as const
 
-export function interpreterLog(trace: TraceConfig): Log
+export function interpreterLog(trace: TraceConfig = defaultTraceConfig): Log
 {
     return {
         err: trace.error,
@@ -32,7 +32,7 @@ export function interpreterLog(trace: TraceConfig): Log
     }
 }
 
-export function memoryAccessLog(trace: TraceConfig): Log
+export function memoryAccessLog(trace: TraceConfig = defaultTraceConfig): Log
 {
     return {
         err: trace.error,
@@ -41,7 +41,7 @@ export function memoryAccessLog(trace: TraceConfig): Log
     }
 }
 
-export function dapLog(trace: TraceConfig): Log
+export function dapLog(trace: TraceConfig = defaultTraceConfig): Log
 {
     return {
         err: trace.error,
@@ -50,7 +50,7 @@ export function dapLog(trace: TraceConfig): Log
     }
 }
 
-export function probeLog(trace: TraceConfig): Log
+export function probeLog(trace: TraceConfig = defaultTraceConfig): Log
 {
     return {
         err: trace.error,
@@ -59,7 +59,7 @@ export function probeLog(trace: TraceConfig): Log
     }
 }
 
-export function operationLog(trace: TraceConfig): Log
+export function operationLog(trace: TraceConfig = defaultTraceConfig): Log
 {
     return {
         err: trace.error,

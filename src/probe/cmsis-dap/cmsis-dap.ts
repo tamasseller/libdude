@@ -11,8 +11,8 @@ import { promisify } from 'util';
 import { DapAction, DapDp, DapError, DapRead, DapWait, DapWrite } from "../../core/dap";
 import { bytes, format16 } from "../../format";
 import { DelayOperation, LinkDriverSetupOperation, LinkDriverShutdownOperation, LinkTargetConnectOperation, Probe, ProbeOperation, ResetLineOperation, TransferOperation, UiOperation } from "../probe";
-import { UiOptions } from "../../core/target";
-import { ProbeDriver } from "../registry";
+import { Log } from "../../log";
+import { ProbeDriver } from "../driver";
 
 export const DEFAULT_CLOCK_FREQUENCY = 10000000;
 
@@ -52,9 +52,12 @@ function convertTransferResponse(resp: protocol.TransferResponse)
     return ret;
 }
 
-@ProbeDriver("CMSIS-DAP", [{vid: 0xc251, pid: 0xf001}])
 export class CmsisDap implements Probe
 {
+    static driver = new ProbeDriver("CMSIS-DAP", [{vid: 0xc251, pid: 0xf001}], async (log: Log, dev: usb.Device) => {
+        return new CmsisDap(log, dev);
+    })
+
     private interface: usb.Interface
     private inEp: usb.InEndpoint
     private outEp: usb.OutEndpoint
@@ -65,7 +68,7 @@ export class CmsisDap implements Probe
     private maxPacketSize: number = 64
     private hasAtomic: boolean = false
 
-    constructor(readonly log: UiOptions, private readonly usbDev: usb.Device) {}
+    constructor(readonly log: Log, private readonly usbDev: usb.Device) {}
     
     pktCounter = 0;
     protected sendPacket(p: command.Command): void 
@@ -76,16 +79,16 @@ export class CmsisDap implements Probe
         
         const id = ("00" + (this.pktCounter++ % 100)).slice(-2)
 
-        this.log.packetTrace?.(`${id} SEND ${p.toString()} -> ${bytes(fmtd)}`)
+        this.log.dbg(`${id} SEND ${p.toString()} -> ${bytes(fmtd)}`)
         this.outEp.transferAsync(data).catch(exception => {
-            this.log.error(exception)
+            this.log.err(exception)
         })
         .then(() => this.inEp.transferAsync(64))
         .catch(exception => {
-            this.log.error(exception)
+            this.log.err(exception)
         })
         .then(buffer => {
-            this.log.packetTrace?.(`${id} RECV ${p.toString()} <- ${bytes(buffer!.subarray(0, p.responseLength()))}`)
+            this.log.dbg(`${id} RECV ${p.toString()} <- ${bytes(buffer!.subarray(0, p.responseLength()))}`)
             p.parse(buffer as Buffer);
         })
     }
@@ -117,7 +120,7 @@ export class CmsisDap implements Probe
         if(!iface) throw new Error("💩")
 
         if (iface.isKernelDriverActive()) {
-            this.log.packetTrace?.("Detaching kernel driver")
+            this.log.dbg("Detaching kernel driver")
             iface.detachKernelDriver();
             this.reattachKernelDriver = true;
         }
@@ -355,7 +358,7 @@ export class CmsisDap implements Probe
         await this.interface.releaseAsync();
 
         if (this.reattachKernelDriver) {
-            this.log.packetTrace?.("Re-ataching kernel driver")
+            this.log.dbg("Re-ataching kernel driver")
             this.interface.attachKernelDriver();
         }
 

@@ -2,7 +2,7 @@ import assert from 'assert';
 
 
 import {Jep106_Manufacturer} from '../data/jep106'
-import { MemoryAccess, ReadMemory } from './memory/operations';
+import { MemoryAccess, ReadMemory } from './ahbLiteAp';
 
 export const enum CidrClass
 {
@@ -48,17 +48,13 @@ export function parsePidr(pidrh: number, pidrl: number): PidrValue
     }
 }
 
-function consolidateCidrPidr(raw: Buffer): Uint32Array
+function consolidateCidrPidr(raw: Uint32Array): Uint32Array
 {
-    assert((raw.length & 0xf) == 0);
+    assert((raw.length & 0x3) == 0);
 
-    const lastBytes = Buffer.alloc(raw.length >> 2);
-    for(let i = 0; i < raw.length; i += 4)
-    {
-        lastBytes.writeUInt8(raw.readUInt8(i), i >> 2);
-    }
-
+    const lastBytes = Buffer.from(raw);
     const ret = new Uint32Array(lastBytes.length >> 2);
+
     for(let i = 0; i < lastBytes.length; i += 4)
     {
         ret[i >> 2] = lastBytes.readUInt32LE(i);
@@ -73,34 +69,17 @@ export interface BasicRomInfo
     pid: PidrValue
 }
 
-export function readCidrPidr(
-    base: number, 
-    done: (info?: BasicRomInfo) => void, 
-    fail: (e: Error) => void): MemoryAccess
+export function parseBasicRomInfo(data: Uint32Array): BasicRomInfo | undefined
 {
-    return new ReadMemory((base + 0xfd0) >>> 0, 48, data => {
-        const [pidrh, pidrl, cidr] = consolidateCidrPidr(data)
-        const cidClass = parseCidr(cidr);
-        
-        if (cidClass == CidrClass.RomTable || cidClass == CidrClass.DebugComponent) 
-        {
-            done({
-                class: cidClass,
-                pid: parsePidr(pidrh, pidrl)
-            })
-        }
-
-        done(undefined)
-    }, fail);
+    const [pidrh, pidrl, cidr] = consolidateCidrPidr(data)
+    const cidClass = parseCidr(cidr);
+    
+    if (cidClass == CidrClass.RomTable || cidClass == CidrClass.DebugComponent) 
+    {
+        return {
+            class: cidClass,
+            pid: parsePidr(pidrh, pidrl)
+        };
+    }
 }
 
-export function readSysmem(
-    base: number,
-    cidClass: CidrClass,
-    done: (sysmem?: boolean) => void, 
-    fail: (e: Error) => void): MemoryAccess
-{
-    return cidClass == CidrClass.RomTable 
-        ? new ReadMemory((base + 0xfcc) >>> 0, 4, data => done((data.readUInt32LE() & 1) == 1), fail)
-        : new ReadMemory((base + 0xfc8) >>> 0, 4, data => done((data.readUInt32LE() & 0x10) == 0x10), fail)
-}

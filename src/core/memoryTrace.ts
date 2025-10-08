@@ -1,7 +1,7 @@
-import { bytes, format16, format32, format8 } from "../format";
-import { MemoryAccessObserver } from "./translator";
+import { bytes, format16, format32, format8 } from "../format"
+import { MemoryAccessObserver } from "./ahbLiteAp"
 
-export default class MemoryTracer implements MemoryAccessObserver
+export class MemoryTracer implements MemoryAccessObserver
 {
     constructor(readonly log: (msg: string) => void) {}
 

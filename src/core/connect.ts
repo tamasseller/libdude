@@ -1,13 +1,13 @@
 import { dapLog, defaultTraceConfig, TraceConfig } from "../log"
 import { LinkDriverSetupOperation, LinkDriverShutdownOperation, LinkTargetConnectOperation, Probe, ResetLineOperation, UiOperation } from "../probe/probe"
 import { Adapter } from "./adapter"
-import { AbortMask, accessPortIdRegister, AccessPortIdRegisterValue, AdiOperation, ApClass, CtrlStatMask, DebugPort, MemApType, MemoryAccessPort, parseBase, parseIdcode, parseIdr } from "./adi"
-import { AhbLiteAp } from "./ahbLiteAp"
-import { BasicRomInfo, PidrValue, readCidrPidr, readSysmem } from "./coresight"
-import { Target } from "./target"
-import MemoryTracer from "./memory/trace"
-import MemoryAccessTranslator from "./memory/translator"
-import { MemoryAccessScheduler } from "./scheduler"
+import { AbortMask, accessPortIdRegister, AdiOperation, ApClass, CSWMask, CtrlStatMask, DebugPort, MemApType, MemoryAccessPort, parseBase, parseIdcode, parseIdr } from "./adi"
+import { MemoryAccess } from "./ahbLiteAp"
+import { CidrClass, parseBasicRomInfo } from "./coresight"
+import { Target } from "../target/target"
+import { ApInfo, TargetDriver, TargetInfo } from "../target/driver"
+import { TargetDrivers } from "../target/registry"
+import { format32 } from "../format"
 
 /*
  * Configuration options passed to the target identification/initialization procedure.
@@ -17,17 +17,21 @@ export interface ConnectOptions
     /*
      * Try to connect to the device while holding the hardware reset line asserted
      */
-    underReset: boolean
+    underReset?: boolean
 
     /*
      * Halt the core after connection
      */
-    halt: boolean
+    halt?: boolean
 
     /*
      * Desired interface clock frequency
      */
     swdFrequencyHz?: number
+
+    target?: TargetDriver<Target> | string
+
+    trace?: TraceConfig
 
     /*
      * Other target or adapter specific options.
@@ -35,28 +39,16 @@ export interface ConnectOptions
     [x: string]: unknown
 }
 
-export const defaultConnectOptions: ConnectOptions = 
-{
-    underReset: true,
-    halt: true
+
+export default interface MemoryAccessTranslator {
+    translate(cmds: MemoryAccess[]): AdiOperation[];
 }
 
-export interface ApInfo
-{
-    apsel: number;
-    idr: AccessPortIdRegisterValue
-    memAp?: {
-        mat: MemoryAccessTranslator
-        pidr?: PidrValue
-        sysmem?: boolean
-    }
-}
-
-export async function connect(probe: Probe, opts: ConnectOptions = defaultConnectOptions, trace: TraceConfig = defaultTraceConfig): Promise<Target>
+export async function connect(probe: Probe, opts: ConnectOptions = {}): Promise<Target>
 {
     let idcode = 0;
 
-    const adapter = new Adapter(dapLog(trace), probe);
+    const adapter = new Adapter(dapLog(opts.trace ?? defaultTraceConfig), probe);
 
     await new Promise<void>((resolve, reject) => adapter.execute(
         /* Initialize physical interface */
@@ -96,26 +88,26 @@ export async function connect(probe: Probe, opts: ConnectOptions = defaultConnec
         ),
     ))
 
-    const aps = await discoverAps(adapter)
+    const ti: TargetInfo = {
+        discoveredAps: await discoverAps(adapter),
+        dapId: parseIdcode(idcode)
+    }
 
-    const driverBuilder = await identifyDevice({
-        dapId: parseIdcode(idcode),
-        discoveredAps: aps
-    })
+    const drv = (opts.target instanceof TargetDriver) ? opts.target : TargetDrivers.select(ti, opts.target)
+    const ret = await drv.build(adapter, opts);
 
-    const accessor = new MemoryAccessScheduler(
-        ops => adapter.execute(...driverBuilder.sysMemAp.translate(ops)),
-        op => adapter.execute(op)
-    );
-
-    const driver = await driverBuilder.build(opts.ui, accessor, opts)
+    if(!ret)
+    {
+        disconnect(probe)
+        throw `Identity validation (${drv.name}) failed for MCU with DAP idcode: ${format32(ti.dapId.raw)}}`;
+    }
 
     await new Promise<void>((r, j) => adapter.execute(
         /* Indicate connection completion on potential adapter UI */
         new UiOperation({CONNECT: true}, j, r)
     ))
 
-    return driver
+    return ret
 }
 
 async function discoverAps(adapter: Adapter): Promise<ApInfo[]>
@@ -163,40 +155,36 @@ async function processAp(adapter: Adapter, apsel: number, rawIdr: number)
 
     if (apInfo.idr.class == ApClass.MEM) 
     {
-        switch (apInfo.idr.type) 
+        if (apInfo.idr.type !== MemApType.AHB3) 
         {
-            case MemApType.AHB3:
-                apInfo.memAp = { 
-                    mat: new AhbLiteAp(apsel, 
-                        adapter.log.memoryAccessTrace
-                            ? new MemoryTracer(adapter.log.memoryAccessTrace)
-                            : undefined
-                    )
-                }
-                break
-
-            default: throw new Error("Unsupported memory access port")
+            throw new Error("Unsupported memory access port")
         }
 
+        const map = new MemoryAccessPort(apsel);
+
         const rom: number = await new Promise((resolve, reject) =>
-            adapter.execute(new MemoryAccessPort(apsel).ROM.read(resolve, reject)))
+            adapter.execute(map.ROM.read(resolve, reject)))       
 
         const base = parseBase(rom)
         if (base !== undefined) 
         {
-            const info = await new Promise<BasicRomInfo | undefined>((resolve, reject) => 
-                adapter.execute(...apInfo.memAp!.mat.translate([
-                    readCidrPidr(base, resolve, reject)
-                ]))
-            )
+            const rawRom = await new Promise<Uint32Array>((r, j) => adapter.execute(
+                map.TAR.write((base + 0xfd0) >>> 0, undefined, j),
+                map.CSW.write(CSWMask.VALUE | CSWMask.SIZE_32, undefined, j),
+                map.DRW.readMultiple(12, r, j)
+            ))
 
-            if (info !== undefined) {
-                apInfo.memAp!.pidr = info!.pid
-                apInfo.memAp!.sysmem = await new Promise<boolean | undefined>((resolve, reject) => 
-                    adapter.execute(...apInfo.memAp!.mat.translate([
-                        readSysmem(base, info!.class, resolve, reject)
-                    ]))
-                )
+            const romInfo = parseBasicRomInfo(rawRom)
+
+            if (romInfo !== undefined) 
+            {
+                apInfo.memAp = {
+                    pidr: romInfo.pid,
+                    sysmem: await new Promise<boolean>((r, j) => adapter.execute(
+                        map.TAR.write((base + (romInfo.class == CidrClass.RomTable ? 0xfcc : 0xfc8)) >>> 0, undefined, j),
+                        map.DRW.read(d => r((d & (romInfo.class == CidrClass.RomTable ? 1 : 0x10)) != 0), j)
+                    ))
+                }
             }
         }
     }

@@ -3,9 +3,9 @@ import { format16 } from "../../format";
 import { describe } from "./describe";
 import { promisify } from "util";
 
-type VidPid = {vid: number, pid: number}
+export type VidPid = {vid: number, pid: number}
 
-type Selector = VidPid | VidPid[] | string
+export type Selector = VidPid | VidPid[] | string
 
 function processSelector(selector: Selector): { name: string; get: () => Promise<usb.Device[]>; match: (d: Device) => Promise<boolean>; }
 {

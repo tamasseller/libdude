@@ -3,7 +3,6 @@ import assert from "assert";
 import Executor, { Invocation } from "../executor";
 import MemoryAccessor from "./accessor";
 
-import range from "../../../utility/range";
 import { Assignment, Block, Branch, Jump, JumpKind, Loop, Special, Statement, Store } from "../program/statement";
 import { Binary, Constant, Expression, Load, Variable } from "../program/expression";
 import { LoadStoreWidth } from "../program/common";
@@ -69,10 +68,10 @@ class Context
     {
         const ret = this.overlays.length * 1024;
 
-        this.overlays.push(
-            ...range(0, (data.length + 1023) >>> 10)
-                .map(i => data.subarray(i * 1024, Math.min((i + 1) * 1024, data.byteLength)))
-        )
+        for(let i = 0; i < (data.length + 1023) >>> 10; i++)
+        {
+            this.overlays.push(data.subarray(i * 1024, Math.min((i + 1) * 1024, data.byteLength)))
+        }
         
         return ret;
     }

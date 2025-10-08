@@ -1,4 +1,4 @@
-import { Target } from "../core/target";
+import { Target } from "./target";
 import { format32 } from "../format";
 import { defaultTraceConfig, Log, operationLog } from "../log";
 import { Chunk } from "./chunk";

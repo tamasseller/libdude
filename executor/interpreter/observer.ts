@@ -1,4 +1,5 @@
 import { format32 } from "../../src/format";
+import { Log } from "../../src/log";
 import { operatorPrecedence, operatorToString } from "../program/binaryOperator";
 import { LoadStoreWidth } from "../program/common";
 import { Variable, Expression, Constant, Load, Binary } from "../program/expression";

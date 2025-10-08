@@ -3,8 +3,15 @@ import assert from "node:assert";
 import { CSWMask, MemoryAccessPort, AdiRegister, AdiOperation } from './adi'
 import { DapAction } from './dap'
 
-import MemoryAccessTranslator, { MemoryAccessObserver } from "./memory/translator";
 import { format32 } from "../format";
+import MemoryAccessTranslator from "./connect";
+
+export interface MemoryAccessObserver 
+{
+    observeWritten(address: number, data: Buffer): void;
+    observeRead(address: number, data: Buffer): void;
+    observeWaited(address: number, mask: number, value: number): void;
+}
 
 export abstract class MemoryAccess 
 {
