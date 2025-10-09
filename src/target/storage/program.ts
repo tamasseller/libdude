@@ -1,12 +1,16 @@
+import assert from "assert";
+import { CoreState, Target } from "../../operations/target";
 import { format32 } from "../../trace/format";
 import { defaultTraceConfig, Log, operationLog } from "../../trace/log";
-import { Target } from "../target";
 import { Chunk } from "./chunk";
 import { Image } from "./image";
 
 export async function program(target: Target, image: Image, preferred?: string, log: Log = operationLog(defaultTraceConfig)) 
 {
-    for(const area of target.storage.areas)
+    const [state] = await target.execute(target.debug!.getState);
+    assert(state as CoreState == CoreState.Halted)
+
+    for(const area of target.program.areas)
     {
         const pieces = image.getSegmentsInRange(area.base, area.size);
 
@@ -31,8 +35,23 @@ export async function program(target: Target, image: Image, preferred?: string, 
                 const rangeName = `${format32(p.base)} - ${format32((p.base + p.data.length))}`
                 log.dbg?.(`Writing range ${rangeName} in area ${areaName}` + (writer.desc ? ` using '${writer.desc}' method` : ''))
 
-                await writer.perform(p.base, p.data)
+                await target.execute(writer.perform, p.base, p.data)
             }
         }
     }
+}
+
+export async function wipe(target: Target, log: Log = operationLog(defaultTraceConfig)): Promise<number> 
+{
+    const [state] = await target.execute(target.debug!.getState);
+    assert(state as CoreState === CoreState.Halted)
+
+    const [ret] = await target.execute(target.program!.wipe);
+
+    if(ret !== 0)
+    {
+        throw new Error(`Mass erase operation failed (${format32(ret)})`)
+    }
+
+    return ret
 }

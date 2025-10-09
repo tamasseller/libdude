@@ -55,7 +55,7 @@ export class Cortex
         return new Promise<void>((r, j) => this.accessor.flush([this.accessor.write(address, data, r, j)]))
     }
 
-    execute(procedure: Procedure, ...args: number[]): Promise<number[]> 
+    execute(procedure: Procedure, ...args: (number | Buffer)[]): Promise<number[]> 
     {
         return this.interpreter.run(procedure, ...args);
     }
@@ -90,7 +90,6 @@ export class Cortex
 
         halt: Procedure.build($ => 
         {
-            const [doHalt] = $.args
             $.add(DHCSR.update(
                 DHCSR.C_DEBUGEN.is(true),
                 DHCSR.C_HALT.is(true),
@@ -101,7 +100,6 @@ export class Cortex
 
         resume: Procedure.build($ => 
         {
-            const [doHalt] = $.args
             $.add(DHCSR.update(
                 DHCSR.C_DEBUGEN.is(true),
                 DHCSR.C_HALT.is(false),

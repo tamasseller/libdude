@@ -14,6 +14,7 @@ import { AhbLiteAp } from "../../core/ahbLiteAp";
 import { MemoryAccessAdapter } from "../../operations/memoryAccess";
 import { Target, Storage } from "../../operations/target";
 import { Cortex } from "../common/cortex";
+import { massErase } from "./stm32g0flash";
 
 export class Stm32g0 extends Cortex implements Target
 {
@@ -38,7 +39,7 @@ export class Stm32g0 extends Cortex implements Target
         },
         (adapter: AdiExecutor, opts: ConnectOptions) => Stm32g0.build(adapter, opts)
     )
-    
+        
     static async build(adapter: AdiExecutor, opts: ConnectOptions): Promise<Stm32g0>
     {
         const ret = new Stm32g0(
@@ -64,12 +65,20 @@ export class Stm32g0 extends Cortex implements Target
             ))
         }))
 
+        const halt = (opts.halt ?? false);
         // TODO join invocation
-        const [nrstWorks] = await ret.execute(ret.debug.reset, (opts.halt ?? true) ? 1 : 0)
-
-        if(!nrstWorks)
+        if(opts.underReset)
         {
-            operationLog(opts.trace).err("NRST dysfunctional, executed soft reset instead")
+            const [nrstWorks] = await ret.execute(ret.debug.reset, halt ? 1 : 0)
+
+            if(!nrstWorks)
+            {
+                operationLog(opts.trace).err("NRST dysfunctional, executed soft reset instead")
+            }
+        }
+        else if(!halt)
+        {
+            await ret.execute(ret.debug.resume)
         }
 
         const [part, pkgData, flashSizeKb] = await ret.execute(Procedure.build($ => 
@@ -88,92 +97,77 @@ export class Stm32g0 extends Cortex implements Target
         ret.description = `${partName(part)} in ${identifyPackage(part, pkgData)} package`
                 + ` with ${sramSizeKb(part)} kB RAM and ${flashSizeKb} kB flash`
 
+        ret.program =
+        {
+            wipe: massErase,
+            areas: [
+                {
+                    desc: "Option bytes",
+                    base: 0x1fff_7800,
+                    size: 0x50,
+                },
+                {
+                    desc: "OTP",
+                    base: 0x1fff_7000,
+                    size: 0x400,
+                },
+                {
+                    desc: "Main flash",
+                    base: 0x0800_0000,
+                    size: flashSizeKb * 1024,
+                    // write: 
+                    // [
+                    //     {
+                    //         desc: "normal",
+                    //         eraseSize: 2048,
+                    //         programSize: 8,
+                    //         perform: async (address, data) => 
+                    //         {
+                    //             assert((address & 7) === 0)
+                    //             assert(0x0800_0000 <= address && address < 0x0800_0000 + flashSizeKb * 1024);
+
+                    //             const end = (address + data.byteLength);
+                    //             assert((end & 7) === 0)
+                    //             assert(0x0800_0000 <= end && end < 0x0800_0000 + flashSizeKb * 1024);
+                                
+                    //             const coreState = await cortex.processor.getState()
+                    //             if(coreState !== CoreState.Halted)
+                    //             {
+                    //                 log.error(`Core is not halted before flash programming`)
+                    //             }
+
+                    //             await interpreter.executeOperations(...normalProgram(address, data))
+                    //         }
+                    //     },
+                    //     {
+                    //         desc: "fast",
+                    //         eraseSize: 2048,
+                    //         programSize: 256,
+                    //         perform: async (address, data) => {
+                    //             assert((address & 255) === 0)
+                    //             assert(0x0800_0000 <= address && address < 0x0800_0000 + flashSizeKb * 1024);
+
+                    //             const end = (address + data.byteLength);
+                    //             assert((end & 255) === 0)
+                    //             assert(0x0800_0000 <= end && end < 0x0800_0000 + flashSizeKb * 1024);
+                                
+                    //             const coreState = await cortex.processor.getState()
+                    //             if(coreState !== CoreState.Halted)
+                    //             {
+                    //                 log.error(`Core is not halted before flash programming`)
+                    //             }
+
+                    //             await interpreter.executeOperations(...fastProgram(address, data))
+                    //         }
+                    //     }
+                    // ]
+                }
+            ]
+        }
+
         return ret
     }
 
-    description: string;
-
-    readonly storage: Storage =
-    {
-        areas: []
-    }
-
-    // readonly storage = new class Stm32g0Storage implements Storage
-    // {
-    //     wipe = async () => 
-    //     {
-    //         const coreState = await cortex.processor.getState()
-    //         if(coreState !== CoreState.Halted)
-    //         {
-    //             log.error(`Core is not halted before mass erase`)
-    //         }
-
-    //         await interpreter.executeOperations(...massErase());
-    //     }
-
-    //     readonly areas =
-    //     [
-    //         {
-    //             desc: "Option bytes",
-    //             base: 0x1fff_7800,
-    //             size: 0x50,
-    //         },
-    //         {
-    //             desc: "OTP",
-    //             base: 0x1fff_7000,
-    //             size: 0x400,
-    //         },
-    //         {
-    //             desc: "Main flash",
-    //             base: 0x0800_0000,
-    //             size: flashSizeKb * 1024,
-    //             write: 
-    //             [
-    //                 {
-    //                     desc: "normal",
-    //                     eraseSize: 2048,
-    //                     programSize: 8,
-    //                     perform: async (address, data) => 
-    //                     {
-    //                         assert((address & 7) === 0)
-    //                         assert(0x0800_0000 <= address && address < 0x0800_0000 + flashSizeKb * 1024);
-
-    //                         const end = (address + data.byteLength);
-    //                         assert((end & 7) === 0)
-    //                         assert(0x0800_0000 <= end && end < 0x0800_0000 + flashSizeKb * 1024);
-                            
-    //                         const coreState = await cortex.processor.getState()
-    //                         if(coreState !== CoreState.Halted)
-    //                         {
-    //                             log.error(`Core is not halted before flash programming`)
-    //                         }
-
-    //                         await interpreter.executeOperations(...normalProgram(address, data))
-    //                     }
-    //                 },
-    //                 {
-    //                     desc: "fast",
-    //                     eraseSize: 2048,
-    //                     programSize: 256,
-    //                     perform: async (address, data) => {
-    //                         assert((address & 255) === 0)
-    //                         assert(0x0800_0000 <= address && address < 0x0800_0000 + flashSizeKb * 1024);
-
-    //                         const end = (address + data.byteLength);
-    //                         assert((end & 255) === 0)
-    //                         assert(0x0800_0000 <= end && end < 0x0800_0000 + flashSizeKb * 1024);
-                            
-    //                         const coreState = await cortex.processor.getState()
-    //                         if(coreState !== CoreState.Halted)
-    //                         {
-    //                             log.error(`Core is not halted before flash programming`)
-    //                         }
-
-    //                         await interpreter.executeOperations(...fastProgram(address, data))
-    //                     }
-    //                 }
-    //             ]
-    //         }
-    //     ]
-    // }
+    description: string
+    program: Storage
 }
