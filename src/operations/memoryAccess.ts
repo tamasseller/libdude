@@ -104,7 +104,7 @@ export interface MemoryAccessTranslator
 
 export interface MemoryAccessExecutor
 {
-    execute(ops: (LinkManagementOperation | AdiOperation | MemoryAccess)[])
+    execute(ops: (LinkManagementOperation | AdiOperation | MemoryAccess)[]): void
 }
 
 export class MemoryAccessAdapter implements MemoryAccessExecutor

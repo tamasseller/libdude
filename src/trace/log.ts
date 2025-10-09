@@ -1,5 +1,5 @@
-import { Observer } from "../../executor/interpreter/intepreter"
-import { Variable } from "../../executor/program/expression"
+import { Observer } from "../../executor/src/interpreter/observer"
+import { Variable } from "../../executor/src/program/expression"
 import { MemoryAccessObserver } from "../core/ahbLiteAp"
 import { DebugObserver } from "./debugObserver"
 import { MemoryTracer } from "./memoryTrace"
@@ -38,11 +38,13 @@ export function operationLog(trace: TraceConfig = defaultTraceConfig): Log
     }
 }
 
-export function debugObserver(trace: TraceConfig = defaultTraceConfig): (args: Variable[], retvals: Variable[]) => Observer | undefined
+export function debugObserver(trace: TraceConfig = defaultTraceConfig): ((args: Variable[], retvals: Variable[]) => Observer) | undefined
 {
-    if(trace.interpreterTrace)
+    const interpreterTrace = trace.interpreterTrace
+    
+    if(interpreterTrace)
     {
-        return (args: Variable[], retvals: Variable[]) => new DebugObserver(trace.interpreterTrace, args, retvals)
+        return (args: Variable[], retvals: Variable[]) => new DebugObserver(interpreterTrace, args, retvals)
     }
 }
 

@@ -1,5 +1,5 @@
 import assert from "assert";
-import MemoryAccessor from "../../executor/interpreter/accessor";
+import { MemoryAccessor } from "../../executor/src/interpreter/accessor";
 import { MemoryAccess, MemoryAccessExecutor, ReadMemory, WaitMemory, WriteMemory } from "../operations/memoryAccess";
 import { LinkManagementOperation } from "../operations/probe";
 import { AdiOperation } from "../operations/adiOperation";

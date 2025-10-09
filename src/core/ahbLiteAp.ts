@@ -245,7 +245,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
                 const buff = Buffer.alloc(r.length)
 
                 const done = this.observer 
-                    ? (v) => {this.observer?.observeRead(r.address, v); r.done(v)}
+                    ? (v: Buffer) => {this.observer?.observeRead(r.address, v); r.done(v)}
                     : r.done
 
                 return AhbLiteAp.alignSequencer(

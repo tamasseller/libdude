@@ -2,11 +2,11 @@ import { TargetDriver, TargetInfo } from "../driver";
 import { Jep106_Manufacturer } from "../../data/jep106";
 import { StPartNumbers } from "../../data/pidrPartNumbers";
 import { ConnectOptions } from "../../core/connect";
-import Procedure from "../../../executor/program/procedure";
+import Procedure from "../../../executor/src/program/procedure";
 import { DBG, RCC } from "./stm32g0hw";
-import { Constant } from "../../../executor/program/expression";
+import { Constant } from "../../../executor/src/program/expression";
 import { DeviceSignature, identifyPackage, partName, sramSizeKb } from "./stm32g0identity";
-import { LoadStoreWidth } from "../../../executor/program/common";
+import { LoadStoreWidth } from "../../../executor/src/program/common";
 import { ApClass } from "../../data/adiRegisters";
 import { AdiExecutor } from "../../operations/adiOperation";
 import { defaultTraceConfig, memoryAccessLog, operationLog } from "../../trace/log";
@@ -18,6 +18,9 @@ import { massErase } from "./stm32g0flash";
 
 export class Stm32g0 extends Cortex implements Target
 {
+    description: string = "?"
+    program?: Storage
+
     public static driver = new TargetDriver<Stm32g0>(
         "stm32g0",
         (ti: TargetInfo) => 
@@ -44,7 +47,7 @@ export class Stm32g0 extends Cortex implements Target
     {
         const ret = new Stm32g0(
             new MemoryAccessAdapter(adapter, new AhbLiteAp(0, memoryAccessLog(opts.trace))),
-            opts.trace
+            opts.trace ?? defaultTraceConfig
         )
 
         await ret.execute(Procedure.build($ => 
@@ -167,7 +170,4 @@ export class Stm32g0 extends Cortex implements Target
 
         return ret
     }
-
-    description: string
-    program: Storage
 }

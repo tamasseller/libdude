@@ -1,0 +1,3 @@
+[submodule "executor"]
+	path = executor
+	url = https://github.com/tamasseller/mucu.git

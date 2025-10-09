@@ -2,7 +2,7 @@ import { ConnectOptions } from "../core/connect";
 import { AccessPortIdRegisterValue, Idcode } from "../data/adiRegisters";
 import { PidrValue } from "../data/coresight";
 import { AdiExecutor } from "../operations/adiOperation";
-import { Target } from "./target";
+import { Target } from "../operations/target";
 
 export interface ApInfo
 {

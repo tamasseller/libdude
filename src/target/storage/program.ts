@@ -10,6 +10,8 @@ export async function program(target: Target, image: Image, preferred?: string, 
     const [state] = await target.execute(target.debug!.getState);
     assert(state as CoreState == CoreState.Halted)
 
+    assert(target.program)
+
     for(const area of target.program.areas)
     {
         const pieces = image.getSegmentsInRange(area.base, area.size);
@@ -46,7 +48,9 @@ export async function wipe(target: Target, log: Log = operationLog(defaultTraceC
     const [state] = await target.execute(target.debug!.getState);
     assert(state as CoreState === CoreState.Halted)
 
-    const [ret] = await target.execute(target.program!.wipe);
+    assert(target.program?.wipe)
+
+    const [ret] = await target.execute(target.program.wipe);
 
     if(ret !== 0)
     {

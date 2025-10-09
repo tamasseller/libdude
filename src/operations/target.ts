@@ -1,4 +1,4 @@
-import Procedure from "../../executor/program/procedure"
+import Procedure from "../../executor/src/program/procedure"
 
 export interface Target
 {

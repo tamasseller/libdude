@@ -1,7 +1,7 @@
-import Interpreter from "../../../executor/interpreter/intepreter";
-import { Constant } from "../../../executor/program/expression";
-import Procedure from "../../../executor/program/procedure";
-import { Special } from "../../../executor/program/statement";
+import Interpreter from "../../../executor/src/interpreter/intepreter";
+import { Special } from "../../../executor/src/interpreter/special";
+import { Constant } from "../../../executor/src/program/expression";
+import Procedure from "../../../executor/src/program/procedure";
 import { MemoryAccessScheduler } from "../../core/scheduler";
 import { AIRCR, DCRDR, DCRSR, DEMCR, DHCSR } from "../../data/cortexRegisters";
 import { MemoryAccessAdapter } from "../../operations/memoryAccess";

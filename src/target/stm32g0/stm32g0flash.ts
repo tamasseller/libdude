@@ -1,12 +1,8 @@
 import { FLASH } from "./stm32g0hw";
-import { Chunk } from "./chunk";
-import Procedure from "../../../executor/program/procedure";
-import { Special } from "../../../executor/program/statement";
+import Procedure from "../../../executor/src/program/procedure";
 import { DelayOperation } from "../../operations/probe";
-import { Constant } from "../../../executor/program/expression";
-import { Operation } from "../../../executor/executor";
-import { format32 } from "../../trace/format";
-import { stat } from "fs";
+import { Constant } from "../../../executor/src/program/expression";
+import { Special } from "../../../executor/src/interpreter/special";
 
 const prepareFlashFragment = $ => 
 {

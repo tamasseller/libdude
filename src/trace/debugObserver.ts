@@ -1,12 +1,11 @@
 import { format32 } from "./format";
-import { Log } from "./log";
-import { operatorPrecedence, operatorToString } from "../../executor/program/binaryOperator";
-import { LoadStoreWidth } from "../../executor/program/common";
-import { Variable, Expression, Constant, Load, Binary } from "../../executor/program/expression";
-import { Assignment, Store, Loop, Branch, Special, Jump, JumpKind } from "../../executor/program/statement";
-import { Observer } from "../../executor/interpreter/intepreter";
-
+import { operatorPrecedence, operatorToString } from "../../executor/src/program/binaryOperator";
+import { LoadStoreWidth } from "../../executor/src/program/common";
+import { Variable, Expression, Constant, Load, Binary } from "../../executor/src/program/expression";
+import { Assignment, Store, Loop, Branch, Jump, JumpKind, Call } from "../../executor/src/program/statement";
+import { Observer } from "../../executor/src/interpreter/observer";
 import assert from "assert";
+import { Special } from "../../executor/src/interpreter/special";
 
 export class DebugObserver implements Observer
 {
@@ -14,7 +13,7 @@ export class DebugObserver implements Observer
     private indent = 0
     private varCounter = 0
 
-    constructor(private readonly log: (msg: string) => void, args: Variable[], retvals: Variable[]) 
+    constructor(private readonly log: (msg: string) => void, args: Variable[], readonly retvals: Variable[]) 
     {
         args.forEach((v, idx) => this.varNames.set(v, `a${idx}`))
         retvals.forEach((v, idx) => this.varNames.set(v, `r${idx}`))
@@ -126,8 +125,15 @@ export class DebugObserver implements Observer
                 this.log(`${this.i}continue`)
                 break
             case JumpKind.Return:
-                this.log(`${this.i}return`)
+                this.log(`${this.i}return ` + this.retvals.map(v => this.stringify(v)))
                 break
         }
+    }
+
+    observeCall(s: Call): void 
+    {
+        const args = s.args.map(v => this.stringify(v)).join(", ")
+        const rvs = s.retvals.map(v => this.stringify(v)).join(", ")
+        this.log(`[${rvs}] = call(${args})`)
     }
 }
