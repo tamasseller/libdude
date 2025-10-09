@@ -2,13 +2,12 @@
 ':' //; exec "$(command -v nodejs || command -v node)" "--import" "tsx" "$0" "$@"
 
 import assert from "node:assert";
-import { defaultTraceConfig, operationLog, TraceConfig } from "../src/log";
+import { defaultTraceConfig, operationLog, TraceConfig } from "../src/trace/log";
 import { ProbeDrivers } from "../src/probe/registry";
 import { connect, disconnect } from "../src/core/connect";
-import { Image } from "../src/target/image";
 import { readFileSync } from "node:fs";
-import { program } from "../src/target/program";
-
+import { Image } from "../src/target/storage/image";
+import { program } from "../src/target/storage/program";
 
 const validTraces = ["interpreter", "memory", "dap", "packets"] as const;
 type ValidTrace = typeof validTraces[number]

@@ -1,9 +1,9 @@
-import { defaultTraceConfig, probeLog, TraceConfig } from "../log";
+import { defaultTraceConfig, probeLog, TraceConfig } from "../trace/log";
 
-import { Probe } from "./probe";
 import { CmsisDap } from "./cmsis-dap/cmsis-dap";
 import { summonUsbDevice } from "./usb/summon";
 import { ProbeDriver } from "./driver";
+import { Probe } from "../operations/probe";
 
 export class ProbeDrivers
 {

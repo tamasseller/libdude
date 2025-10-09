@@ -1,8 +1,8 @@
 import { Device } from "usb";
-import { defaultTraceConfig, Log, probeLog, TraceConfig } from "../log";
-import { Probe } from "./probe";
-import { Selector, summonUsbDevice } from "./usb/summon";
+import { defaultTraceConfig, Log, probeLog, TraceConfig } from "../trace/log";
+import { summonUsbDevice } from "./usb/summon";
 import assert from "assert";
+import { Probe } from "../operations/probe";
 
 export class ProbeDriver<T extends Probe>
 {
@@ -11,10 +11,6 @@ export class ProbeDriver<T extends Probe>
         readonly ids: {vid: number, pid: number}[],
         readonly build: (log: Log, dev: Device) => Promise<T>
     ) {}
-
-    get selector(): Selector {
-        return this.ids;
-    }
 
     async summon(which?: string, trace: TraceConfig = defaultTraceConfig)
     {

@@ -1,4 +1,4 @@
-import {Register, Field} from '../../core/register'
+import {Register, Field} from '../../data/memoryMappedRegister'
 
 export class FLASH
 {

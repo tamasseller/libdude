@@ -1,8 +1,6 @@
 import assert from 'assert';
 
-
 import {Jep106_Manufacturer} from '../data/jep106'
-import { MemoryAccess, ReadMemory } from './ahbLiteAp';
 
 export const enum CidrClass
 {

@@ -1,13 +1,12 @@
-import { dapLog, defaultTraceConfig, TraceConfig } from "../log"
-import { LinkDriverSetupOperation, LinkDriverShutdownOperation, LinkTargetConnectOperation, Probe, ResetLineOperation, UiOperation } from "../probe/probe"
-import { Adapter } from "./adapter"
-import { AbortMask, accessPortIdRegister, AdiOperation, ApClass, CSWMask, CtrlStatMask, DebugPort, MemApType, MemoryAccessPort, parseBase, parseIdcode, parseIdr } from "./adi"
-import { MemoryAccess } from "./ahbLiteAp"
-import { CidrClass, parseBasicRomInfo } from "./coresight"
-import { Target } from "../target/target"
+import { TraceConfig } from "../trace/log"
 import { ApInfo, TargetDriver, TargetInfo } from "../target/driver"
 import { TargetDrivers } from "../target/registry"
-import { format32 } from "../format"
+import { format32 } from "../trace/format"
+import { CidrClass, parseBasicRomInfo } from "../data/coresight"
+import { DebugPort, AbortMask, CtrlStatMask, parseIdcode, accessPortIdRegister, parseIdr, ApClass, MemApType, MemoryAccessPort, parseBase, CSWMask } from "../data/adiRegisters"
+import { AdiExecutor, AdiOperation, AdiOperationAdapter } from "../operations/adiOperation"
+import { Probe, LinkDriverSetupOperation, ResetLineOperation, LinkTargetConnectOperation, UiOperation, LinkDriverShutdownOperation } from "../operations/probe"
+import { Target } from "../operations/target"
 
 /*
  * Configuration options passed to the target identification/initialization procedure.
@@ -39,18 +38,13 @@ export interface ConnectOptions
     [x: string]: unknown
 }
 
-
-export default interface MemoryAccessTranslator {
-    translate(cmds: MemoryAccess[]): AdiOperation[];
-}
-
 export async function connect(probe: Probe, opts: ConnectOptions = {}): Promise<Target>
 {
     let idcode = 0;
 
-    const adapter = new Adapter(dapLog(opts.trace ?? defaultTraceConfig), probe);
+    const adapter = new AdiOperationAdapter(probe);
 
-    await new Promise<void>((resolve, reject) => adapter.execute(
+    await new Promise<void>((resolve, reject) => adapter.execute([
         /* Initialize physical interface */
         new LinkDriverSetupOperation({
             ...(opts.swdFrequencyHz ? {frequency: opts.swdFrequencyHz} : {})
@@ -86,7 +80,7 @@ export async function connect(probe: Probe, opts: ConnectOptions = {}): Promise<
             CtrlStatMask.CDBGPWRUPACK | CtrlStatMask.CSYSPWRUPACK,
             resolve, r => reject(new Error(`CTRL_STAT wait for powerup failed`, { cause: r }))
         ),
-    ))
+    ]))
 
     const ti: TargetInfo = {
         discoveredAps: await discoverAps(adapter),
@@ -102,15 +96,15 @@ export async function connect(probe: Probe, opts: ConnectOptions = {}): Promise<
         throw `Identity validation (${drv.name}) failed for MCU with DAP idcode: ${format32(ti.dapId.raw)}}`;
     }
 
-    await new Promise<void>((r, j) => adapter.execute(
+    await new Promise<void>((r, j) => adapter.execute([
         /* Indicate connection completion on potential adapter UI */
         new UiOperation({CONNECT: true}, j, r)
-    ))
+    ]))
 
     return ret
 }
 
-async function discoverAps(adapter: Adapter): Promise<ApInfo[]>
+async function discoverAps(adapter: AdiExecutor): Promise<ApInfo[]>
 {
     const discoveredAps: ApInfo[] = []
 
@@ -128,7 +122,7 @@ async function discoverAps(adapter: Adapter): Promise<ApInfo[]>
             }))
         }
 
-        adapter.execute(...tasks);
+        adapter.execute(tasks);
         
         const rawIdrs = await Promise.all<number>(promises)
         const nonZeroRawIdrs = rawIdrs.map<[number, number]>((v, idx) => [v, idx]).filter(v => v[0] !== 0)
@@ -146,7 +140,7 @@ async function discoverAps(adapter: Adapter): Promise<ApInfo[]>
     return discoveredAps;
 }
 
-async function processAp(adapter: Adapter, apsel: number, rawIdr: number) 
+async function processAp(adapter: AdiExecutor, apsel: number, rawIdr: number) 
 {
     const apInfo: ApInfo = {
         apsel: apsel,
@@ -162,17 +156,16 @@ async function processAp(adapter: Adapter, apsel: number, rawIdr: number)
 
         const map = new MemoryAccessPort(apsel);
 
-        const rom: number = await new Promise((resolve, reject) =>
-            adapter.execute(map.ROM.read(resolve, reject)))       
+        const rom: number = await new Promise((resolve, reject) => adapter.execute([map.ROM.read(resolve, reject)]))
 
         const base = parseBase(rom)
         if (base !== undefined) 
         {
-            const rawRom = await new Promise<Uint32Array>((r, j) => adapter.execute(
+            const rawRom = await new Promise<Uint32Array>((r, j) => adapter.execute([
                 map.TAR.write((base + 0xfd0) >>> 0, undefined, j),
                 map.CSW.write(CSWMask.VALUE | CSWMask.SIZE_32, undefined, j),
                 map.DRW.readMultiple(12, r, j)
-            ))
+            ]))
 
             const romInfo = parseBasicRomInfo(rawRom)
 
@@ -180,10 +173,10 @@ async function processAp(adapter: Adapter, apsel: number, rawIdr: number)
             {
                 apInfo.memAp = {
                     pidr: romInfo.pid,
-                    sysmem: await new Promise<boolean>((r, j) => adapter.execute(
+                    sysmem: await new Promise<boolean>((r, j) => adapter.execute([
                         map.TAR.write((base + (romInfo.class == CidrClass.RomTable ? 0xfcc : 0xfc8)) >>> 0, undefined, j),
                         map.DRW.read(d => r((d & (romInfo.class == CidrClass.RomTable ? 1 : 0x10)) != 0), j)
-                    ))
+                    ]))
                 }
             }
         }

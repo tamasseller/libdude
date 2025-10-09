@@ -1,5 +1,5 @@
 import { usb } from "usb";
-import { format16 } from "../../format";
+import { format16 } from "../../trace/format";
 
 async function fetchStringDesciptor(dev: usb.Device, idx:number): Promise<string>
 {

@@ -1,11 +1,11 @@
-import { format32 } from '../../format';
-import * as proto from './protocol'
+import { format32 } from '../../trace/format';
+import { CommandCode, InfoRequest, CapabilityMask, HostStatusType, Protocol, ConnectResponse, Response, SwjPinMask, TransferResponse } from './protocol'
 
 import assert from "assert";
 
 export abstract class Command
 {
-    constructor(public readonly code: proto.CommandCode) {}
+    constructor(public readonly code: CommandCode) {}
 
     protected abstract tellRequestLength(): number;
     public requestLength() {
@@ -83,8 +83,8 @@ export type InfoResponse =
 
 export class InfoCommand extends Command 
 {
-    constructor(readonly info: proto.InfoRequest, readonly done: (resp: InfoResponse) => void) {
-        super(proto.CommandCode.INFO)
+    constructor(readonly info: InfoRequest, readonly done: (resp: InfoResponse) => void) {
+        super(CommandCode.INFO)
     }
 
     override tellRequestLength(): number {
@@ -123,26 +123,26 @@ export class InfoCommand extends Command
 
         switch(this.info)
         {
-            case proto.InfoRequest.VENDOR_ID:                this.done({vendor: readString()}); break;
-            case proto.InfoRequest.PRODUCT_ID:               this.done({product: readString()}); break;
-            case proto.InfoRequest.SERIAL_NUMBER:            this.done({serial: readString()}); break;
-            case proto.InfoRequest.CMSIS_DAP_FW_VERSION:     this.done({cmsisDapProtocolVersion: readString()}); break;
-            case proto.InfoRequest.PRODUCT_FIRMWARE_VERSION: this.done({productFirmwareVersion: readString()}); break;
-            case proto.InfoRequest.TEST_DOMAIN_TIMER:        this.done({testDomainTimerFreq: readWord()}); break;
-            case proto.InfoRequest.SWO_TRACE_BUFFER_SIZE:    this.done({swoTraceBufferSize: readWord()}); break;
-            case proto.InfoRequest.PACKET_COUNT:             this.done({maximumPacketCount: readByte()}); break;
-            case proto.InfoRequest.PACKET_SIZE:              this.done({maximumPacketSize: readByte()}); break;
-            case proto.InfoRequest.CAPABILITIES:             
+            case InfoRequest.VENDOR_ID:                this.done({vendor: readString()}); break;
+            case InfoRequest.PRODUCT_ID:               this.done({product: readString()}); break;
+            case InfoRequest.SERIAL_NUMBER:            this.done({serial: readString()}); break;
+            case InfoRequest.CMSIS_DAP_FW_VERSION:     this.done({cmsisDapProtocolVersion: readString()}); break;
+            case InfoRequest.PRODUCT_FIRMWARE_VERSION: this.done({productFirmwareVersion: readString()}); break;
+            case InfoRequest.TEST_DOMAIN_TIMER:        this.done({testDomainTimerFreq: readWord()}); break;
+            case InfoRequest.SWO_TRACE_BUFFER_SIZE:    this.done({swoTraceBufferSize: readWord()}); break;
+            case InfoRequest.PACKET_COUNT:             this.done({maximumPacketCount: readByte()}); break;
+            case InfoRequest.PACKET_SIZE:              this.done({maximumPacketSize: readByte()}); break;
+            case InfoRequest.CAPABILITIES:             
                 const capsByte = readByte()
                 const parsedCaps = new Capabilities()
-                parsedCaps.swd =                  !!(capsByte & proto.CapabilityMask.SWD)
-                parsedCaps.jtag =                 !!(capsByte & proto.CapabilityMask.JTAG),
-                parsedCaps.swo_uart =             !!(capsByte & proto.CapabilityMask.SWO_UART),
-                parsedCaps.swo_manchester =       !!(capsByte & proto.CapabilityMask.SWO_MANCHESTER),
-                parsedCaps.atomic_commands =      !!(capsByte & proto.CapabilityMask.ATOMIC_COMMANDS),
-                parsedCaps.test_domain_timer =    !!(capsByte & proto.CapabilityMask.TEST_DOMAIN_TIMER),
-                parsedCaps.swo_streaming_trace =  !!(capsByte & proto.CapabilityMask.SWO_STREAMING_TRACE),
-                parsedCaps.uart =                 !!(capsByte & proto.CapabilityMask.UART)
+                parsedCaps.swd =                  !!(capsByte & CapabilityMask.SWD)
+                parsedCaps.jtag =                 !!(capsByte & CapabilityMask.JTAG),
+                parsedCaps.swo_uart =             !!(capsByte & CapabilityMask.SWO_UART),
+                parsedCaps.swo_manchester =       !!(capsByte & CapabilityMask.SWO_MANCHESTER),
+                parsedCaps.atomic_commands =      !!(capsByte & CapabilityMask.ATOMIC_COMMANDS),
+                parsedCaps.test_domain_timer =    !!(capsByte & CapabilityMask.TEST_DOMAIN_TIMER),
+                parsedCaps.swo_streaming_trace =  !!(capsByte & CapabilityMask.SWO_STREAMING_TRACE),
+                parsedCaps.uart =                 !!(capsByte & CapabilityMask.UART)
                 this.done({capabilities: parsedCaps}); 
                 break;
         }
@@ -157,8 +157,8 @@ export class InfoCommand extends Command
 
 export class HostStatusCommand extends Command 
 {
-    constructor(readonly type: proto.HostStatusType, readonly on: boolean, readonly done: () => void) {
-        super(proto.CommandCode.HOST_STATUS)
+    constructor(readonly type: HostStatusType, readonly on: boolean, readonly done: () => void) {
+        super(CommandCode.HOST_STATUS)
     }
 
     override tellRequestLength(): number {
@@ -186,8 +186,8 @@ export class HostStatusCommand extends Command
 
 export class ConnectCommand extends Command 
 {
-    constructor(readonly protocol: proto.Protocol, readonly done: (r: proto.ConnectResponse) => void) {
-        super(proto.CommandCode.CONNECT)
+    constructor(readonly protocol: Protocol, readonly done: (r: ConnectResponse) => void) {
+        super(CommandCode.CONNECT)
     }
 
     override tellRequestLength(): number {
@@ -203,7 +203,7 @@ export class ConnectCommand extends Command
     }
 
     override parseResponseBytes(data: Buffer): number {  
-        this.done(data.readUint8() as proto.ConnectResponse);
+        this.done(data.readUint8() as ConnectResponse);
         return 1;
     }
 
@@ -214,8 +214,8 @@ export class ConnectCommand extends Command
 
 export class DisconnectCommand extends Command 
 {
-    constructor(readonly done: (status: proto.Response) => void) {
-        super(proto.CommandCode.DISCONNECT)
+    constructor(readonly done: (status: Response) => void) {
+        super(CommandCode.DISCONNECT)
     }
 
     override tellRequestLength(): number {
@@ -242,8 +242,8 @@ export class DisconnectCommand extends Command
 
 export class WriteAbortCommand extends Command 
 {
-    constructor(readonly abortMask: number, readonly done: (status: proto.Response) => void) {
-        super(proto.CommandCode.WRITE_ABORT)
+    constructor(readonly abortMask: number, readonly done: (status: Response) => void) {
+        super(CommandCode.WRITE_ABORT)
     }
 
     override tellRequestLength(): number {
@@ -270,8 +270,8 @@ export class WriteAbortCommand extends Command
 
 export class DelayCommand extends Command 
 {
-    constructor(readonly delayUs: number, readonly done: (status: proto.Response) => void) {
-        super(proto.CommandCode.DELAY)
+    constructor(readonly delayUs: number, readonly done: (status: Response) => void) {
+        super(CommandCode.DELAY)
     }
 
     override tellRequestLength(): number {
@@ -301,7 +301,7 @@ export class DelayCommand extends Command
 export class ResetTargetCommand extends Command 
 {
     constructor(readonly done: (status: number, executed: number) => void) {
-        super(proto.CommandCode.RESET_TARGET)
+        super(CommandCode.RESET_TARGET)
     }
 
     override tellRequestLength(): number {
@@ -329,12 +329,12 @@ export class ResetTargetCommand extends Command
 export class SwjPinsCommand extends Command 
 {
     constructor(
-        readonly output: proto.SwjPinMask, 
-        readonly select: proto.SwjPinMask, 
+        readonly output: SwjPinMask, 
+        readonly select: SwjPinMask, 
         readonly wait: number, 
-        readonly done: (input: proto.SwjPinMask) => void
+        readonly done: (input: SwjPinMask) => void
     ) {
-        super(proto.CommandCode.SWJ_PINS)
+        super(CommandCode.SWJ_PINS)
     }
 
     override tellRequestLength(): number {
@@ -365,8 +365,8 @@ export class SwjPinsCommand extends Command
 
 export class SwjClockCommand extends Command 
 {
-    constructor(readonly clockFreqHz: number, readonly done: (status: proto.Response) => void) {
-        super(proto.CommandCode.SWJ_CLOCK)
+    constructor(readonly clockFreqHz: number, readonly done: (status: Response) => void) {
+        super(CommandCode.SWJ_CLOCK)
     }
 
     override tellRequestLength(): number {
@@ -398,9 +398,9 @@ export class SwjSequenceCommand extends Command
     constructor(
         readonly bitCount: number, 
         readonly bits: Uint8Array, 
-        readonly done: (input: proto.Response) => void
+        readonly done: (input: Response) => void
     ) {
-        super(proto.CommandCode.SWJ_SEQUENCE)
+        super(CommandCode.SWJ_SEQUENCE)
         assert(bits.length == ((bitCount + 7) >> 3));
     }
 
@@ -432,9 +432,9 @@ export class TransferConfigureCommand extends Command
         readonly idleCycles: number, 
         readonly waitRetry: number, 
         readonly matchRetry: number, 
-        readonly done: (input: proto.Response) => void
+        readonly done: (input: Response) => void
     ) {
-        super(proto.CommandCode.TRANSFER_CONFIGURE)
+        super(CommandCode.TRANSFER_CONFIGURE)
     }
 
     override tellRequestLength(): number {
@@ -483,24 +483,24 @@ export class TransferRequest
         readonly op: TransferOperation, 
         readonly ap_nDp: boolean, 
         readonly address: number, 
-        readonly done: (input: proto.TransferResponse, data?: number) => void, 
+        readonly done: (input: TransferResponse, data?: number) => void, 
         readonly value?: number
     ) {}
 
-    public static read(ap_nDp: boolean, address: number, done: (input: proto.TransferResponse, data: number) => void = () => {}): TransferRequest {
-        return new TransferRequest(TransferOperation.Read, ap_nDp, address, done as (input: proto.TransferResponse, data?: number) => void);
+    public static read(ap_nDp: boolean, address: number, done: (input: TransferResponse, data: number) => void = () => {}): TransferRequest {
+        return new TransferRequest(TransferOperation.Read, ap_nDp, address, done as (input: TransferResponse, data?: number) => void);
     }
 
-    public static write(ap_nDp: boolean, address: number, value: number, done: (input: proto.TransferResponse) => void = () => {}): TransferRequest {
-        return new TransferRequest(TransferOperation.Write, ap_nDp, address, done as (input: proto.TransferResponse) => void, value);
+    public static write(ap_nDp: boolean, address: number, value: number, done: (input: TransferResponse) => void = () => {}): TransferRequest {
+        return new TransferRequest(TransferOperation.Write, ap_nDp, address, done as (input: TransferResponse) => void, value);
     }
 
-    public static valueMatch(ap_nDp: boolean, address: number, value: number, done: (input: proto.TransferResponse) => void = () => {}): TransferRequest {
-        return new TransferRequest(TransferOperation.ValueMatch, ap_nDp, address, done as (input: proto.TransferResponse) => void, value);
+    public static valueMatch(ap_nDp: boolean, address: number, value: number, done: (input: TransferResponse) => void = () => {}): TransferRequest {
+        return new TransferRequest(TransferOperation.ValueMatch, ap_nDp, address, done as (input: TransferResponse) => void, value);
     }
 
-    public static matchMask(ap_nDp: boolean, address: number, value: number, done: (input: proto.TransferResponse) => void = () => {}): TransferRequest {
-        return new TransferRequest(TransferOperation.MatchMask, ap_nDp, address, done as (input: proto.TransferResponse) => void, value);
+    public static matchMask(ap_nDp: boolean, address: number, value: number, done: (input: TransferResponse) => void = () => {}): TransferRequest {
+        return new TransferRequest(TransferOperation.MatchMask, ap_nDp, address, done as (input: TransferResponse) => void, value);
     }
 
     tellRequestLength(): number {
@@ -556,7 +556,7 @@ export class TransferRequest
 export class TransferCommand extends Command 
 {
     constructor(readonly reqs: TransferRequest[]) {
-        super(proto.CommandCode.TRANSFER)
+        super(CommandCode.TRANSFER)
     }
 
     override tellRequestLength(): number {
@@ -584,7 +584,7 @@ export class TransferCommand extends Command
         let offset = 2;
         for(let idx = 0; idx < this.reqs.length; idx++)
         {
-            offset += this.reqs[idx].parse(idx < count ? proto.TransferResponse.OK : lastResp, data.subarray(offset))
+            offset += this.reqs[idx].parse(idx < count ? TransferResponse.OK : lastResp, data.subarray(offset))
         }
 
         if(count != this.reqs.length) throw new Error("Incorrect transfer count in response")
@@ -600,7 +600,7 @@ export class TransferCommand extends Command
 export abstract class TransferBlockCommand extends Command 
 {
     constructor(readonly ap_nDp: boolean, readonly address: number) {
-        super(proto.CommandCode.TRANSFER_BLOCK)
+        super(CommandCode.TRANSFER_BLOCK)
     }
 
     public abstract split(reqDataSpace: number, resDataSpace: number): [TransferBlockCommand | undefined, TransferBlockCommand];
@@ -612,7 +612,7 @@ export class WriteBlockCommand extends TransferBlockCommand
         ap_nDp: boolean, 
         address: number, 
         readonly values: number[], 
-        readonly done: (input: proto.TransferResponse, data?: number) => void) 
+        readonly done: (input: TransferResponse, data?: number) => void) 
     {
         super(ap_nDp, address)
     }
@@ -667,7 +667,7 @@ export class ReadBlockCommand extends TransferBlockCommand
         readonly ap_nDp: boolean,
         readonly address: number, 
         readonly count: number, 
-        readonly done: (input: proto.TransferResponse, data: number[]) => void
+        readonly done: (input: TransferResponse, data: number[]) => void
     ) {
         super(ap_nDp, address)
     }
@@ -726,7 +726,7 @@ export class ReadBlockCommand extends TransferBlockCommand
 export class TransferAbortCommand extends Command 
 {
     constructor() {
-        super(proto.CommandCode.TRANSFER_ABORT)
+        super(CommandCode.TRANSFER_ABORT)
     }
 
     override tellRequestLength(): number {
@@ -754,7 +754,7 @@ export class TransferAbortCommand extends Command
 export class ExecuteCommands extends Command 
 {
     constructor(readonly cmds: Command[]) {
-        super(proto.CommandCode.EXECUTE_COMMANDS)
+        super(CommandCode.EXECUTE_COMMANDS)
     }
 
     override tellRequestLength(): number {

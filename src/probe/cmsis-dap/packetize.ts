@@ -1,27 +1,27 @@
-import * as proto from './protocol'
-import * as cmd from './command'
+import { CommandCode } from './protocol'
+import { ExecuteCommands, TransferCommand, WriteBlockCommand, ReadBlockCommand, Command, TransferRequest, TransferBlockCommand } from './command'
 import assert from 'assert'
 
-const executeReqOverhead = new cmd.ExecuteCommands([]).requestLength()
-const executeResOverhead = new cmd.ExecuteCommands([]).responseLength()
-const transferReqOverhead = new cmd.TransferCommand([]).requestLength()
-const transferResOverhead = new cmd.TransferCommand([]).responseLength()
-const transferBlockReqOverhead = new cmd.WriteBlockCommand(false, 0, [], () => {}).requestLength()
-assert(transferBlockReqOverhead == new cmd.ReadBlockCommand(false, 0, 0, () => {}).requestLength())
-const transferBlockResOverhead = new cmd.WriteBlockCommand(false, 0, [], () => {}).responseLength()
-assert(transferBlockResOverhead == new cmd.ReadBlockCommand(false, 0, 0, () => {}).responseLength())
+const executeReqOverhead = new ExecuteCommands([]).requestLength()
+const executeResOverhead = new ExecuteCommands([]).responseLength()
+const transferReqOverhead = new TransferCommand([]).requestLength()
+const transferResOverhead = new TransferCommand([]).responseLength()
+const transferBlockReqOverhead = new WriteBlockCommand(false, 0, [], () => {}).requestLength()
+assert(transferBlockReqOverhead == new ReadBlockCommand(false, 0, 0, () => {}).requestLength())
+const transferBlockResOverhead = new WriteBlockCommand(false, 0, [], () => {}).responseLength()
+assert(transferBlockResOverhead == new ReadBlockCommand(false, 0, 0, () => {}).responseLength())
 
-function mergeAdjecentTransfers([first, second, ...rest]: cmd.Command[]): cmd.Command[]
+function mergeAdjecentTransfers([first, second, ...rest]: Command[]): Command[]
 {
     if(first === undefined) return []
     if(second === undefined) return [first]
 
-    if(first?.code === proto.CommandCode.TRANSFER && second?.code === proto.CommandCode.TRANSFER)
+    if(first?.code === CommandCode.TRANSFER && second?.code === CommandCode.TRANSFER)
     {
         return mergeAdjecentTransfers([
-            new cmd.TransferCommand([
-                ...(first as cmd.TransferCommand).reqs,
-                ...(second as cmd.TransferCommand).reqs
+            new TransferCommand([
+                ...(first as TransferCommand).reqs,
+                ...(second as TransferCommand).reqs
             ]), 
             ...rest
         ]);
@@ -30,11 +30,11 @@ function mergeAdjecentTransfers([first, second, ...rest]: cmd.Command[]): cmd.Co
     return [first, ...mergeAdjecentTransfers([second, ...rest])];
 }
 
-function splitTransfers(reqs: cmd.TransferRequest[], reqSpace: number, resSpace: number): [cmd.TransferRequest[], cmd.TransferRequest[]]
+function splitTransfers(reqs: TransferRequest[], reqSpace: number, resSpace: number): [TransferRequest[], TransferRequest[]]
 {
     let reqLenAcc = 0;
     let resLenAcc = 0;
-    const take: cmd.TransferRequest[] = [];
+    const take: TransferRequest[] = [];
 
     while(true)
     {
@@ -59,14 +59,14 @@ function splitTransfers(reqs: cmd.TransferRequest[], reqSpace: number, resSpace:
     return [take, reqs]
 }
 
-export function formPackets(cmds: cmd.Command[], maxPacketSize: number, canExecute: boolean): cmd.Command[]
+export function formPackets(cmds: Command[], maxPacketSize: number, canExecute: boolean): Command[]
 {
     if(!cmds.length)
     {
         return [];
     }
 
-    const pkt: cmd.Command[] = [];
+    const pkt: Command[] = [];
     let reqLenAcc = 0;
     let resLenAcc = 0;
 
@@ -90,12 +90,12 @@ export function formPackets(cmds: cmd.Command[], maxPacketSize: number, canExecu
                 resLenAcc += firstResLen
                 continue;
             }
-            else if(first.code == proto.CommandCode.TRANSFER 
+            else if(first.code == CommandCode.TRANSFER 
                 && transferReqOverhead < reqLenAvailable 
                 && transferResOverhead < resLenAvailable)
             {
                 const [take, leave] = splitTransfers(
-                    (first as cmd.TransferCommand).reqs, 
+                    (first as TransferCommand).reqs, 
                     reqLenAvailable - transferReqOverhead, 
                     resLenAvailable - transferResOverhead
                 )
@@ -104,16 +104,16 @@ export function formPackets(cmds: cmd.Command[], maxPacketSize: number, canExecu
 
                 if(take.length)
                 {
-                    pkt.push(new cmd.TransferCommand(take));
-                    cmds = [new cmd.TransferCommand(leave), ...rest];
+                    pkt.push(new TransferCommand(take));
+                    cmds = [new TransferCommand(leave), ...rest];
                 }
             }
-            else if(first.code == proto.CommandCode.TRANSFER_BLOCK 
+            else if(first.code == CommandCode.TRANSFER_BLOCK 
                 && transferBlockReqOverhead < reqLenAvailable 
                 && transferBlockResOverhead < resLenAvailable
             )
             {
-                const bxfer = first as cmd.TransferBlockCommand;
+                const bxfer = first as TransferBlockCommand;
                 const [take, leave] = bxfer.split(
                     reqLenAvailable - transferBlockReqOverhead, 
                     resLenAvailable - transferBlockResOverhead
@@ -135,12 +135,12 @@ export function formPackets(cmds: cmd.Command[], maxPacketSize: number, canExecu
     return [
         pkt.length == 1 
             ? pkt[0] 
-            : new cmd.ExecuteCommands(pkt), 
+            : new ExecuteCommands(pkt), 
         ...formPackets(cmds, maxPacketSize, canExecute)
     ];
 }
 
-export function packetize(cmds: cmd.Command[], maxPacketSize: number, canExecute: boolean): cmd.Command[]
+export function packetize(cmds: Command[], maxPacketSize: number, canExecute: boolean): Command[]
 {
     return formPackets(mergeAdjecentTransfers(cmds), maxPacketSize, canExecute);
 }

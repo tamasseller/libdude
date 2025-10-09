@@ -1,108 +1,15 @@
 import assert from "node:assert";
 
-import { CSWMask, MemoryAccessPort, AdiRegister, AdiOperation } from './adi'
-import { DapAction } from './dap'
-
-import { format32 } from "../format";
-import MemoryAccessTranslator from "./connect";
+import { DapAction } from '../operations/dapOperation'
+import { CSWMask, MemoryAccessPort } from "../data/adiRegisters";
+import { AdiRegister, AdiOperation } from "../operations/adiOperation";
+import { MemoryAccess, MemoryAccessTranslator, ReadMemory, WaitMemory, WriteMemory } from "../operations/memoryAccess";
 
 export interface MemoryAccessObserver 
 {
     observeWritten(address: number, data: Buffer): void;
     observeRead(address: number, data: Buffer): void;
     observeWaited(address: number, mask: number, value: number): void;
-}
-
-export abstract class MemoryAccess 
-{
-    constructor(
-        readonly address: number, 
-        readonly action: DapAction, 
-        readonly fail: (e: Error) => void
-    ) {
-        assert(0 <= address && address <= 4294967295);
-    }
-
-    abstract getWordBoundaries(): [number, number] | undefined;
-    abstract getLength(): number | undefined;
-}
-
-export class WriteMemory extends MemoryAccess 
-{
-    constructor(
-        address: number, 
-        readonly values: Buffer,
-        readonly done: () => void = () => { }, 
-        reject: (e: Error) => void
-    ) {
-        super(address, DapAction.WRITE, e => 
-        {
-            const valStr = [...this.values.values()].map(n => `00${n.toString(16)}`.slice(-2)).join(" ")
-            reject(new Error(`Memory write operation at ${format32(address)} failed with value [${valStr}]`, { cause: e }));
-        });
-    }
-
-    override getWordBoundaries(): [number, number] | undefined {
-        if (this.values.length == 4 && (this.address & 3) == 0) {
-            return [this.address, this.address + 4];
-        }
-    }
-
-    override getLength(): number {
-        return this.values.byteLength
-    }
-}
-
-export class ReadMemory extends MemoryAccess 
-{
-    constructor(
-        address: number, 
-        readonly length: number,
-        readonly done: (v: Buffer) => void = () => { }, 
-        reject: (e: Error) => void
-    ) {
-        super(address, DapAction.READ, e => 
-        {
-            return reject(new Error(`Memory read operation at ${format32(address)} of length ${this.length} failed`, { cause: e }));
-        });
-    }
-
-    override getWordBoundaries(): [number, number] | undefined {
-        if (this.length == 4 && (this.address & 3) == 0) {
-            return [this.address, this.address + 4];
-        }
-    }
-
-    override getLength(): number {
-        return this.length
-    }
-}
-
-export class WaitMemory extends MemoryAccess 
-{
-    constructor(
-        address: number, 
-        readonly mask: number,
-        readonly value: number, 
-        readonly done: () => void = () => { }, 
-        reject: (e: Error) => void
-    ) {
-        assert((address & 3) == 0);
-        assert((value & ~mask) == 0);
-
-        super(address, DapAction.WAIT, e => 
-        {
-            return reject(new Error(`Wait for word value of ${format32(value)} with mask ${format32(mask)} operation at ${format32(address)} failed`, { cause: e }));
-        });
-    }
-
-    override getWordBoundaries(): [number, number] {
-        return [this.address, this.address + 4];
-    }
-
-    override getLength(): undefined {
-        return undefined
-    }
 }
 
 const enum AccessWidth
@@ -429,7 +336,7 @@ export class AhbLiteAp implements MemoryAccessTranslator
                         break;
                     }
 
-                    range = nRange;
+                    range = nRange as [number, number];
                     j++;
                 }
 

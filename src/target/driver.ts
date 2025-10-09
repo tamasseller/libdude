@@ -1,7 +1,7 @@
-import { Adapter } from "../core/adapter";
-import { AccessPortIdRegisterValue, Idcode } from "../core/adi";
-import { PidrValue } from "../core/coresight";
-import { TraceConfig } from "../log";
+import { ConnectOptions } from "../core/connect";
+import { AccessPortIdRegisterValue, Idcode } from "../data/adiRegisters";
+import { PidrValue } from "../data/coresight";
+import { AdiExecutor } from "../operations/adiOperation";
 import { Target } from "./target";
 
 export interface ApInfo
@@ -25,6 +25,6 @@ export class TargetDriver<T extends Target>
     constructor(
         readonly name: string, 
         readonly match: (ti: TargetInfo) => boolean,
-        readonly build: (adapter: Adapter, opts: ConnectOptions) => Promise<T>
+        readonly build: (adapter: AdiExecutor, opts: ConnectOptions) => Promise<T>
     ) {}
 }

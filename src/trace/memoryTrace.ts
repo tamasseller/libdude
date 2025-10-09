@@ -1,5 +1,5 @@
-import { bytes, format16, format32, format8 } from "../format"
-import { MemoryAccessObserver } from "./ahbLiteAp"
+import { bytes, format16, format32, format8 } from "./format"
+import { MemoryAccessObserver } from "../core/ahbLiteAp"
 
 export class MemoryTracer implements MemoryAccessObserver
 {
@@ -17,14 +17,14 @@ export class MemoryTracer implements MemoryAccessObserver
     }
 
     observeWritten(address: number, data: Buffer): void  {
-        this.log(`WR [${format32(address)}] <- ${MemoryTracer.formatData(data)} ---`)
+        this.log(`WR [${format32(address)}] <- ${MemoryTracer.formatData(data)}`)
     }
 
     observeRead(address: number, data: Buffer): void {
-        this.log(`RD [${format32(address)}] -> ${MemoryTracer.formatData(data)} ---`)
+        this.log(`RD [${format32(address)}] -> ${MemoryTracer.formatData(data)}`)
     }
 
     observeWaited(address: number, mask: number, value: number): void {
-        this.log(`WT [${format32(address)}] & ${format32(mask)} == ${format32(value)} ---`)
+        this.log(`WT [${format32(address)}] & ${format32(mask)} == ${format32(value)}`)
     }
 }

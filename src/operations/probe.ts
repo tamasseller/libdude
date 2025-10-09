@@ -1,13 +1,6 @@
-import { DapOperation } from "../core/dap"
+import { DapOperation } from "../operations/dapOperation"
 
 export abstract class ProbeOperation {}
-
-export interface Probe
-{
-    start(): Promise<string>
-    stop(): Promise<void>
-    execute(ops: ProbeOperation[]): void
-}
 
 export class TransferOperation extends ProbeOperation
 {
@@ -70,4 +63,11 @@ export class ResetLineOperation extends LinkManagementOperation
     constructor(readonly assert: boolean, fail: (e: Error) => void) {
         super(fail)
     }
+}
+
+export interface Probe
+{
+    start(): Promise<string>
+    stop(): Promise<void>
+    execute(ops: ProbeOperation[]): void
 }

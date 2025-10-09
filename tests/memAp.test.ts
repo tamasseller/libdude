@@ -1,10 +1,9 @@
-import { CSWMask } from '../src/core/adi';
-import * as memAp from '../src/core/memory/ahbLiteAp';
-import { WriteMemory, ReadMemory, WaitMemory} from '../src/core/memory/operations';
-
 import test, { suite } from 'node:test';
 import assert from 'node:assert';
-import { format32 } from '../src/format';
+import { format32 } from '../src/trace/format';
+import { CSWMask } from '../src/data/adiRegisters';
+import { WriteMemory, ReadMemory, WaitMemory } from '../src/operations/memoryAccess';
+import { AhbLiteAp } from '../src/core/ahbLiteAp';
 
 export function write8(address: number, value: number, done: () => void = () => { }, fail: (e: Error) => void): WriteMemory {
     assert(0 <= value && value <= 0xff);
@@ -44,7 +43,7 @@ export function read32(address: number, done: (v: number) => void = () => { }, f
 
 suite("mem-ap", {}, () => {
     test("read8", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([read8(0x05, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([read8(0x05, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x05)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_8)}`,
@@ -53,7 +52,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("read16", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(1).translate([read16(0x06, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(1).translate([read16(0x06, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP1.TAR <- ${format32(0x06)}`,
             `WRITE(1) AP1.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_16)}`,
@@ -62,7 +61,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("read32", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(2).translate([read16(0x08, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(2).translate([read16(0x08, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP2.TAR <- ${format32(0x08)}`,
             `WRITE(1) AP2.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_16)}`,
@@ -71,7 +70,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("readBlockSingleByte", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(3).translate([new ReadMemory(0x09, 1, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(3).translate([new ReadMemory(0x09, 1, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP3.TAR <- ${format32(0x09)}`,
             `WRITE(1) AP3.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_8)}`,
@@ -80,7 +79,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("readBlockHalfWordAligned", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new ReadMemory(0x0a, 2, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new ReadMemory(0x0a, 2, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x0a)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_16)}`,
@@ -89,7 +88,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("readBlockHalfWordMisaligned", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new ReadMemory(0x0b, 2, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new ReadMemory(0x0b, 2, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x0b)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_8)}`,
@@ -99,7 +98,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("readBlockSingleWordAligned", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new ReadMemory(0x0c, 4, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new ReadMemory(0x0c, 4, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x0c)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_32)}`,
@@ -108,7 +107,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("readBlockSingleWordMisAligned", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new ReadMemory(0x0d, 4, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new ReadMemory(0x0d, 4, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x0d)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_8)}`,
@@ -121,7 +120,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("readBytes1", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new ReadMemory(0x0e, 5, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new ReadMemory(0x0e, 5, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x0e)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_16)}`,
@@ -133,7 +132,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("readBytes2", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new ReadMemory(0x0f, 6, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new ReadMemory(0x0f, 6, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x0f)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_8)}`,
@@ -146,7 +145,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("write8lane0", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([write8(0x10, 0xa5, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([write8(0x10, 0xa5, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x10)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_8)}`,
@@ -155,7 +154,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("write8lane1", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([write8(0x11, 0xa5, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([write8(0x11, 0xa5, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x11)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_8)}`,
@@ -164,7 +163,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("write8lane2", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([write8(0x12, 0xa5, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([write8(0x12, 0xa5, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x12)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_8)}`,
@@ -173,7 +172,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("write8lane3", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([write8(0x13, 0xa5, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([write8(0x13, 0xa5, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x13)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_8)}`,
@@ -182,7 +181,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("write16lane01", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([write16(0x14, 0xb00b, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([write16(0x14, 0xb00b, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x14)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_16)}`,
@@ -191,7 +190,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("write16lane23", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([write16(0x16, 0xb00b, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([write16(0x16, 0xb00b, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x16)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_16)}`,
@@ -200,7 +199,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("write32", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([write32(0x18, 0xb15b00b5, () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([write32(0x18, 0xb15b00b5, () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x18)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_32)}`,
@@ -209,7 +208,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBlockSingleByteAligned", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x20, Buffer.of(1), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x20, Buffer.of(1), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x20)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_8)}`,
@@ -218,7 +217,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBlockSingleByteMisAligned1", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x21, Buffer.of(1), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x21, Buffer.of(1), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x21)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_8)}`,
@@ -227,7 +226,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBlockSingleByteMisAligned2", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x22, Buffer.of(1), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x22, Buffer.of(1), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x22)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_8)}`,
@@ -236,7 +235,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBlockSingleByteMisAligned3", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x23, Buffer.of(1), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x23, Buffer.of(1), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x23)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_8)}`,
@@ -245,7 +244,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBlockHalfWordAligned", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x24, Buffer.of(1, 2), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x24, Buffer.of(1, 2), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x24)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_16)}`,
@@ -254,7 +253,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBlockHalfWordMisaligned", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x25, Buffer.of(1, 2), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x25, Buffer.of(1, 2), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x25)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_8)}`,
@@ -264,7 +263,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBlockAlignedWord", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x1234, Buffer.of(5, 6, 7, 8), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x1234, Buffer.of(5, 6, 7, 8), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x1234)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE_NO_INC | CSWMask.SIZE_32)}`,
@@ -273,7 +272,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBlockMisalignedWord1", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x1235, Buffer.of(0x11, 0x22, 0x33, 0x44), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x1235, Buffer.of(0x11, 0x22, 0x33, 0x44), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x1235)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_8)}`,
@@ -286,7 +285,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBlockMisalignedWord2", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x1236, Buffer.of(0x11, 0x22, 0x33, 0x44), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x1236, Buffer.of(0x11, 0x22, 0x33, 0x44), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x1236)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_16)}`,
@@ -296,7 +295,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBlockMisalignedWord3", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x1237, Buffer.of(0x11, 0x22, 0x33, 0x44), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x1237, Buffer.of(0x11, 0x22, 0x33, 0x44), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x1237)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_8)}`,
@@ -309,7 +308,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBytesTail1", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x1238, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x1238, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x1238)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_32)}`,
@@ -320,7 +319,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBytesTail2", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x1238, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55, 0x66), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x1238, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55, 0x66), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x1238)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_32)}`,
@@ -331,7 +330,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeBytesTail3", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x1238, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x1238, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x1238)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_32)}`,
@@ -344,7 +343,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeThreeWordsAligned", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x1238, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x1238, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x1238)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_32)}`,
@@ -353,7 +352,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeThreeWordsMisaligned1", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x1239, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x1239, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x1239)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_8)}`,
@@ -368,7 +367,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeThreeWordsMisaligned2", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x123a, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x123a, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x123a)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_16)}`,
@@ -381,7 +380,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("writeThreeWordsMisaligned3", () => assert.deepEqual(
-        (new memAp.AhbLiteAp(0).translate([new WriteMemory(0x123b, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc), () => {}, (_) => {})])).map(x => x.toString()),
+        (new AhbLiteAp(0).translate([new WriteMemory(0x123b, Buffer.of(0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc), () => {}, (_) => {})])).map(x => x.toString()),
         [
             `WRITE(1) AP0.TAR <- ${format32(0x123b)}`,
             `WRITE(1) AP0.CSW <- ${format32(CSWMask.VALUE | CSWMask.SIZE_8)}`,
@@ -396,7 +395,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("randomWriteWaitSame", () => assert.deepEqual(
-        new memAp.AhbLiteAp(0).translate([
+        new AhbLiteAp(0).translate([
             write32(0, 123, () => {}, (_) => {}),
             new WaitMemory(0, 456, 456, () => {}, (_) => {}),
         ]).map(x => x.toString()),
@@ -409,7 +408,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("randomWriteDifferent", () => assert.deepEqual(
-        new memAp.AhbLiteAp(0).translate([
+        new AhbLiteAp(0).translate([
             write32(8, 123, () => {}, (_) => {}),
             write32(4, 456, () => {}, (_) => {}),
             write32(12, 789, () => {}, (_) => {}),
@@ -424,7 +423,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("randomReadWriteDifferent", () => assert.deepEqual(
-        new memAp.AhbLiteAp(0).translate([
+        new AhbLiteAp(0).translate([
             read32(8, () => {}, (_) => {}),
             write32(4, 123, () => {}, (_) => {}),
             write32(12, 456, () => {}, (_) => {}),
@@ -439,7 +438,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("cmCoreRegWrite", () => assert.deepEqual(
-        new memAp.AhbLiteAp(0).translate([
+        new AhbLiteAp(0).translate([
             write32(0xe000edf8, 0xc007da7a, () => {}, (_) => {}),
             write32(0xe000edf4, 0x00010000, () => {}, (_) => {}),
             new WaitMemory(0xe000edf0, 0x00010000, 0x00010000, () => {}, (_) => {}),
@@ -454,7 +453,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("cmCoreRegRead", () => assert.deepEqual(
-        new memAp.AhbLiteAp(0).translate([
+        new AhbLiteAp(0).translate([
             write32(0xe000edf4, 0x00000000, () => {}, (_) => {}),
             new WaitMemory(0xe000edf0, 0x00010000, 0x00010000, () => {}, (_) => {}),
             read32(0xe000edf8, () => {}, (_) => {}),
@@ -469,7 +468,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("cmCoreRegWriteMultiple", () => assert.deepEqual(
-        new memAp.AhbLiteAp(0).translate([
+        new AhbLiteAp(0).translate([
             write32(0xe000edf8, 0xc007da7a, () => {}, (_) => {}),
             write32(0xe000edf4, 0x00010000, () => {}, (_) => {}),
             new WaitMemory(0xe000edf0, 0x00010000, 0x00010000, () => {}, (_) => {}),
@@ -490,7 +489,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("readRomTable", () => assert.deepEqual(
-        new memAp.AhbLiteAp(0).translate([
+        new AhbLiteAp(0).translate([
             new ReadMemory(0xf000_0fd0, 48, () => {}, (_) => {}),
         ]).map(x => x.toString()),
         [
@@ -501,7 +500,7 @@ suite("mem-ap", {}, () => {
     ))
 
     test("readRomTableRandom", () => assert.deepEqual(
-        new memAp.AhbLiteAp(0).translate([
+        new AhbLiteAp(0).translate([
             read32(0xf000_0fd0, () => {}, (_) => {}),
             read32(0xf000_0fd4, () => {}, (_) => {}),
             read32(0xf000_0fd8, () => {}, (_) => {}),

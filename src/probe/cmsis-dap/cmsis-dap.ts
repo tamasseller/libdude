@@ -1,18 +1,18 @@
 
-import * as protocol from "./protocol"
+import { TransferResponse, InfoRequest, Response, Protocol, ConnectResponse, HostStatusType, SwjPinMask } from "./protocol"
 
 import { packetize } from './packetize';
-import * as command from './command'
+import { Command, InfoCommand, TransferCommand, TransferRequest, WriteBlockCommand, ReadBlockCommand, DisconnectCommand, SwjClockCommand, TransferConfigureCommand, ConnectCommand, SwjSequenceCommand, HostStatusCommand, DelayCommand, SwjPinsCommand } from './command'
 
-import * as usb from 'usb'
+import { Device, Interface, InEndpoint, OutEndpoint } from 'usb'
 
 import assert from 'assert';
 import { promisify } from 'util';
-import { DapAction, DapDp, DapError, DapRead, DapWait, DapWrite } from "../../core/dap";
-import { bytes, format16 } from "../../format";
-import { DelayOperation, LinkDriverSetupOperation, LinkDriverShutdownOperation, LinkTargetConnectOperation, Probe, ProbeOperation, ResetLineOperation, TransferOperation, UiOperation } from "../probe";
-import { Log } from "../../log";
+import { DapAction, DapDp, DapError, DapRead, DapWait, DapWrite } from "../../operations/dapOperation";
+import { bytes, format16 } from "../../trace/format";
+import { Log } from "../../trace/log";
 import { ProbeDriver } from "../driver";
+import { DelayOperation, LinkDriverSetupOperation, LinkDriverShutdownOperation, LinkTargetConnectOperation, Probe, ProbeOperation, ResetLineOperation, TransferOperation, UiOperation } from "../../operations/probe";
 
 export const DEFAULT_CLOCK_FREQUENCY = 10000000;
 
@@ -21,30 +21,30 @@ const SET_REPORT = 0x09;
 const OUT_REPORT = 0x200;
 const IN_REPORT = 0x100;
 
-function convertTransferResponse(resp: protocol.TransferResponse)
+function convertTransferResponse(resp: TransferResponse)
 {
     const ret: DapError[] = [];
-    if(resp & protocol.TransferResponse.PROTOCOL_ERROR)
+    if(resp & TransferResponse.PROTOCOL_ERROR)
     {
         ret.push(DapError.ProtocolError)
     }
 
-    if(resp & protocol.TransferResponse.VALUE_MISMATCH)
+    if(resp & TransferResponse.VALUE_MISMATCH)
     {
         ret.push(DapError.ValueMismatch)
     }
 
     switch(resp & 7)
     {
-        case protocol.TransferResponse.WAIT:
+        case TransferResponse.WAIT:
             ret.push(DapError.Wait)
             break
 
-        case protocol.TransferResponse.FAULT:
+        case TransferResponse.FAULT:
             ret.push(DapError.Fault)
             break
 
-        case protocol.TransferResponse.NO_ACK:
+        case TransferResponse.NO_ACK:
             ret.push(DapError.NoAck)
             break
     }
@@ -54,13 +54,13 @@ function convertTransferResponse(resp: protocol.TransferResponse)
 
 export class CmsisDap implements Probe
 {
-    static driver = new ProbeDriver("CMSIS-DAP", [{vid: 0xc251, pid: 0xf001}], async (log: Log, dev: usb.Device) => {
+    static driver = new ProbeDriver("CMSIS-DAP", [{vid: 0xc251, pid: 0xf001}], async (log: Log, dev: Device) => {
         return new CmsisDap(log, dev);
     })
 
-    private interface: usb.Interface
-    private inEp: usb.InEndpoint
-    private outEp: usb.OutEndpoint
+    private interface: Interface
+    private inEp: InEndpoint
+    private outEp: OutEndpoint
 
     private description: string;
     private reattachKernelDriver: boolean = false;
@@ -68,10 +68,10 @@ export class CmsisDap implements Probe
     private maxPacketSize: number = 64
     private hasAtomic: boolean = false
 
-    constructor(readonly log: Log, private readonly usbDev: usb.Device) {}
+    constructor(readonly log: Log, private readonly usbDev: Device) {}
     
     pktCounter = 0;
-    protected sendPacket(p: command.Command): void 
+    protected sendPacket(p: Command): void 
     {
         const data = Buffer.alloc(64)
         const fmtd = p.format();
@@ -128,24 +128,24 @@ export class CmsisDap implements Probe
         this.interface = iface;
         this.interface.claim()
 
-        this.inEp = iface.endpoints.find(ep => ep.direction == 'in')! as usb.InEndpoint
+        this.inEp = iface.endpoints.find(ep => ep.direction == 'in')! as InEndpoint
         this.inEp.timeout = 5000;
-        this.outEp = iface.endpoints.find(ep => ep.direction == 'out')! as usb.OutEndpoint
+        this.outEp = iface.endpoints.find(ep => ep.direction == 'out')! as OutEndpoint
         this.outEp.timeout = 5000;
 
         return new Promise<string>(resolve => {
             let str = this.description;
 
-            this.sendPacket(new command.InfoCommand(protocol.InfoRequest.CMSIS_DAP_FW_VERSION, resp => 
+            this.sendPacket(new InfoCommand(InfoRequest.CMSIS_DAP_FW_VERSION, resp => 
                 str += ` cmsis-dap-version: ${resp.cmsisDapProtocolVersion}`
             ))
 
-            this.sendPacket(new command.InfoCommand(protocol.InfoRequest.CAPABILITIES, resp => {
+            this.sendPacket(new InfoCommand(InfoRequest.CAPABILITIES, resp => {
                 str += ` capabilities: [${resp.capabilities!.toSring()}]`
                 this.hasAtomic = resp.capabilities!.atomic_commands;
             }))
 
-            this.sendPacket(new command.InfoCommand(protocol.InfoRequest.PACKET_SIZE, resp =>  {
+            this.sendPacket(new InfoCommand(InfoRequest.PACKET_SIZE, resp =>  {
                 this.maxPacketSize = resp.maximumPacketSize!
                 str += ` packet-size: ${resp.maximumPacketSize}`
                 resolve(str)
@@ -155,7 +155,7 @@ export class CmsisDap implements Probe
     
     execute(ops: ProbeOperation[]): void 
     {
-        const cmds: command.Command[] = []
+        const cmds: Command[] = []
         
         ops.forEach(top => {
             if(top instanceof TransferOperation)
@@ -167,10 +167,10 @@ export class CmsisDap implements Probe
                         {
                             const w = o as DapWrite;
                             assert(w.value.length)
-                            let cmd: command.Command | undefined;
+                            let cmd: Command | undefined;
 
-                            const done = (resp: protocol.TransferResponse): void => {
-                                if(resp != protocol.TransferResponse.OK)
+                            const done = (resp: TransferResponse): void => {
+                                if(resp != TransferResponse.OK)
                                 {
                                     o.fail(new Error(
                                         `Write operation ${w.toString()} implemented via ${cmd} resulted in error (code: ${resp})`, 
@@ -184,14 +184,14 @@ export class CmsisDap implements Probe
                             }
 
                             cmd = (w.value.length == 1) 
-                                ? (new command.TransferCommand([
-                                    command.TransferRequest.write(
+                                ? (new TransferCommand([
+                                    TransferRequest.write(
                                         o.port != DapDp,
                                         o.register, 
                                         w.value[0],
                                         done
                                 )]))
-                                : new command.WriteBlockCommand(
+                                : new WriteBlockCommand(
                                     o.port != DapDp, 
                                     o.register, 
                                     Array.of(...w.value), 
@@ -206,10 +206,10 @@ export class CmsisDap implements Probe
                         {
                             const r = o as DapRead;
                             assert(r.count)
-                            let cmd: command.Command | undefined;
+                            let cmd: Command | undefined;
 
-                            const done = (resp: protocol.TransferResponse, data: Uint32Array): void => {
-                                if(resp != protocol.TransferResponse.OK)
+                            const done = (resp: TransferResponse, data: Uint32Array): void => {
+                                if(resp != TransferResponse.OK)
                                 {
                                     o.fail(new Error(
                                         `Read operation ${r.toString()} implemented via ${cmd} resulted in error (code: ${resp})`, 
@@ -223,12 +223,12 @@ export class CmsisDap implements Probe
                             }
 
                             cmd = (r.count == 1)
-                                ? new command.TransferCommand([
-                                    command.TransferRequest.read(
+                                ? new TransferCommand([
+                                    TransferRequest.read(
                                         o.port != DapDp, o.register, (resp, data) => done(resp, Uint32Array.of(data))
                                     )    
                                 ])
-                                : new command.ReadBlockCommand(
+                                : new ReadBlockCommand(
                                     o.port != DapDp, o.register,  r.count, (resp, data) => done(resp, Uint32Array.of(...data))
                                 )
 
@@ -239,8 +239,8 @@ export class CmsisDap implements Probe
                         case DapAction.WAIT:
                         {
                             const a = o as DapWait;
-                            const setMask = command.TransferRequest.matchMask(o.port != DapDp, o.register, a.mask, resp => {
-                                if(resp != protocol.TransferResponse.OK)
+                            const setMask = TransferRequest.matchMask(o.port != DapDp, o.register, a.mask, resp => {
+                                if(resp != TransferResponse.OK)
                                 {
                                     o.fail(new Error(
                                         `Setup phase of wait operation ${a.toString()} implemented via ${setMask} resulted in error (code: ${resp})`, 
@@ -249,8 +249,8 @@ export class CmsisDap implements Probe
                                 }
                             })
 
-                            const matchValue = command.TransferRequest.valueMatch(o.port != DapDp, o.register, a.value, resp => {
-                                if(resp != protocol.TransferResponse.OK)
+                            const matchValue = TransferRequest.valueMatch(o.port != DapDp, o.register, a.value, resp => {
+                                if(resp != TransferResponse.OK)
                                 {
                                     o.fail(new Error(
                                         `Match phase of wait operation ${a.toString()} implemented via ${matchValue} resulted in error (code: ${resp})`, 
@@ -263,7 +263,7 @@ export class CmsisDap implements Probe
                                 }
                             })
 
-                            cmds.push(new command.TransferCommand([setMask, matchValue]));
+                            cmds.push(new TransferCommand([setMask, matchValue]));
                             break;
                         }
                     }
@@ -273,28 +273,28 @@ export class CmsisDap implements Probe
             {
                 cmds.push(
                     /* Clean up potential previous state */
-                    new command.DisconnectCommand(r => { 
-                        if (r != protocol.Response.OK) top.fail(new Error(`Disconnect failed`, { cause: r })) 
+                    new DisconnectCommand(r => { 
+                        if (r != Response.OK) top.fail(new Error(`Disconnect failed`, { cause: r })) 
                     }),
 
                     /* Set up SWD link */
-                    new command.SwjClockCommand(top.opts.frequency ?? DEFAULT_CLOCK_FREQUENCY, r => { 
-                        if (r != protocol.Response.OK)  top.fail(new Error(`SwjClock failed`, { cause: r })) 
+                    new SwjClockCommand(top.opts.frequency ?? DEFAULT_CLOCK_FREQUENCY, r => { 
+                        if (r != Response.OK)  top.fail(new Error(`SwjClock failed`, { cause: r })) 
                     }),
                     
-                    new command.TransferConfigureCommand(0, 32768, 32768, r => { // TODO make parameters configurable
-                        if (r != protocol.Response.OK) top.fail(new Error(`TransferConfigure failed`, { cause: r })) 
+                    new TransferConfigureCommand(0, 32768, 32768, r => { // TODO make parameters configurable
+                        if (r != Response.OK) top.fail(new Error(`TransferConfigure failed`, { cause: r })) 
                     }),
 
-                    new command.ConnectCommand(protocol.Protocol.SWD, r => { 
-                        if (r != protocol.ConnectResponse.SWD) top.fail(new Error(`Connect failed`, { cause: r })) 
+                    new ConnectCommand(Protocol.SWD, r => { 
+                        if (r != ConnectResponse.SWD) top.fail(new Error(`Connect failed`, { cause: r })) 
                     })
                 );
             }
             else if(top instanceof LinkTargetConnectOperation)
             {
                 cmds.push(
-                    new command.SwjSequenceCommand(
+                    new SwjSequenceCommand(
                         (7 + 2 + 7 + 1) * 8,
                         Uint8Array.of(
                             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -303,22 +303,22 @@ export class CmsisDap implements Probe
                             0x00
                         ),
                         r => {
-                            if (r != protocol.Response.OK) top.fail(new Error(`SwjSequenceCommand failed`, { cause: r })) 
+                            if (r != Response.OK) top.fail(new Error(`SwjSequenceCommand failed`, { cause: r })) 
                         }
                     )
                 )
             }
             else if(top instanceof LinkDriverShutdownOperation )
             {
-                cmds.push(new command.DisconnectCommand(r => { 
-                    if (r != protocol.Response.OK) top.fail(new Error(`Disconnect failed`, { cause: r })) 
+                cmds.push(new DisconnectCommand(r => { 
+                    if (r != Response.OK) top.fail(new Error(`Disconnect failed`, { cause: r })) 
                 }));
             }
             else if(top instanceof UiOperation)
             {
                 if(top.args.CONNECT !== undefined)
                 {
-                    cmds.push(new command.HostStatusCommand(protocol.HostStatusType.CONNECT, top.args.CONNECT, () => { 
+                    cmds.push(new HostStatusCommand(HostStatusType.CONNECT, top.args.CONNECT, () => { 
                         if(top.done) top.done()
                     }));
                 }
@@ -326,20 +326,20 @@ export class CmsisDap implements Probe
                 {
                     assert(top.args.RUNNING !== undefined)
 
-                    cmds.push(new command.HostStatusCommand(protocol.HostStatusType.RUNNING, top.args.RUNNING, () => { 
+                    cmds.push(new HostStatusCommand(HostStatusType.RUNNING, top.args.RUNNING, () => { 
                         if(top.done) top.done()
                     }));
                 }
             }
             else if(top instanceof DelayOperation)
             {
-                cmds.push(new command.DelayCommand(top.timeUs, () => {}));
+                cmds.push(new DelayCommand(top.timeUs, () => {}));
             }
             else if(top instanceof ResetLineOperation)
             {
-                const desired = top.assert ? 0 : protocol.SwjPinMask.nReset
-                cmds.push(new command.SwjPinsCommand(desired, protocol.SwjPinMask.nReset, 20, r => {
-                    if ((r & protocol.SwjPinMask.nReset) != desired) {
+                const desired = top.assert ? 0 : SwjPinMask.nReset
+                cmds.push(new SwjPinsCommand(desired, SwjPinMask.nReset, 20, r => {
+                    if ((r & SwjPinMask.nReset) != desired) {
                         top.fail(new Error(`SwjPinsCommand failed`, { cause: r }))
                     }
                 }))

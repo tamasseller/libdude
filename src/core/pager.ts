@@ -1,5 +1,6 @@
-import { AdiOperation, AdiRead, AdiWait, AdiWrite, DebugPort } from "./adi";
-import { DapOperation, DapWrite, DapDp, DapAction, DapRead, DapWait } from './dap'
+import { DebugPort } from '../data/adiRegisters';
+import { AdiOperation, AdiRead, AdiWait, AdiWrite } from '../operations/adiOperation';
+import { DapOperation, DapWrite, DapDp, DapAction, DapRead, DapWait } from '../operations/dapOperation'
 
 export class Pager
 {

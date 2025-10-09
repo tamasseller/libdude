@@ -1,5 +1,5 @@
 import { usb, Device, findBySerialNumber, findByIds, getDeviceList } from "usb";
-import { format16 } from "../../format";
+import { format16 } from "../../trace/format";
 import { describe } from "./describe";
 import { promisify } from "util";
 

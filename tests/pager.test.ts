@@ -1,9 +1,9 @@
 import { Pager } from '../src/core/pager';
-import { DebugPort, MemoryAccessPort, CSWMask } from '../src/core/adi';
 
 import test, { suite } from 'node:test';
 import assert from 'node:assert';
-import { format32 } from '../src/format';
+import { format32 } from '../src/trace/format';
+import { DebugPort, MemoryAccessPort, CSWMask } from '../src/data/adiRegisters';
 
 suite("pager", {}, () => {
     test("readNonBankedDp", () => {

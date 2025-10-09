@@ -1,4 +1,4 @@
-import { format32 } from "../format";
+import { format32 } from "../../trace/format";
 import { Chunk } from "./chunk";
 
 export class Image 

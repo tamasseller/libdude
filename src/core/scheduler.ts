@@ -1,10 +1,12 @@
 import assert from "assert";
 import MemoryAccessor from "../../executor/interpreter/accessor";
-import { MemoryAccess, ReadMemory, WaitMemory, WriteMemory } from "./ahbLiteAp";
+import { MemoryAccess, MemoryAccessExecutor, ReadMemory, WaitMemory, WriteMemory } from "../operations/memoryAccess";
+import { LinkManagementOperation } from "../operations/probe";
+import { AdiOperation } from "../operations/adiOperation";
 
 interface PendingAccess
 {
-    operation: any
+    operation: LinkManagementOperation | AdiOperation | MemoryAccess 
     next?: PendingAccess
 }
 
@@ -13,10 +15,7 @@ export class MemoryAccessScheduler implements MemoryAccessor
     private first: PendingAccess | undefined
     private last: PendingAccess | undefined
 
-    constructor(
-        private readonly execute: (ops: MemoryAccess[]) => void, 
-        private readonly executeSpecial: (arg: any) => void, 
-    ) {}
+    constructor(readonly mae: MemoryAccessExecutor) {}
 
     private add(operation: any)
     {
@@ -49,14 +48,14 @@ export class MemoryAccessScheduler implements MemoryAccessor
         return this.add(new WaitMemory(address, mask, value, done, fail));
     }
 
-    special(param: any): PendingAccess {
+    special(param: LinkManagementOperation | AdiOperation): PendingAccess {
         return this.add(param);
     }
 
     flush(handles: PendingAccess[]): void 
     {
         const h = new Set(handles)
-        const xfer: MemoryAccess[] = []
+        const xfer: (LinkManagementOperation | AdiOperation | MemoryAccess)[] = []
 
         while(h.size)
         {
@@ -67,23 +66,8 @@ export class MemoryAccessScheduler implements MemoryAccessor
             }
             
             h.delete(curr)
-            const op = curr.operation
+            xfer.push(curr.operation)
 
-            if(op instanceof MemoryAccess)
-            {
-                xfer.push(op)
-            }
-            else
-            {
-                if(xfer.length)
-                {
-                    this.execute(xfer)
-                    xfer.splice(0)
-                }
-
-                this.executeSpecial(op)
-            }
-            
             this.first = this.first!.next
         }
 
@@ -94,7 +78,7 @@ export class MemoryAccessScheduler implements MemoryAccessor
 
         if(xfer.length)
         {
-            this.execute(xfer)
+            this.mae.execute(xfer)
         }
     }
 }

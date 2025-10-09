@@ -1,4 +1,4 @@
-import { format32 } from "../format";
+import { format32 } from "../trace/format";
 import { TargetDriver, TargetInfo } from "./driver";
 import { Stm32g0 } from "./stm32g0/stm32g0";
 import { Target } from "./target";

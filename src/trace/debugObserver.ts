@@ -1,10 +1,10 @@
-import { format32 } from "../../src/format";
-import { Log } from "../../src/log";
-import { operatorPrecedence, operatorToString } from "../program/binaryOperator";
-import { LoadStoreWidth } from "../program/common";
-import { Variable, Expression, Constant, Load, Binary } from "../program/expression";
-import { Assignment, Store, Loop, Branch, Special, Jump, JumpKind } from "../program/statement";
-import { Observer } from "./intepreter";
+import { format32 } from "./format";
+import { Log } from "./log";
+import { operatorPrecedence, operatorToString } from "../../executor/program/binaryOperator";
+import { LoadStoreWidth } from "../../executor/program/common";
+import { Variable, Expression, Constant, Load, Binary } from "../../executor/program/expression";
+import { Assignment, Store, Loop, Branch, Special, Jump, JumpKind } from "../../executor/program/statement";
+import { Observer } from "../../executor/interpreter/intepreter";
 
 import assert from "assert";
 

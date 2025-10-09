@@ -1,6 +1,6 @@
-import { Target } from "./target";
-import { format32 } from "../format";
-import { defaultTraceConfig, Log, operationLog } from "../log";
+import { format32 } from "../../trace/format";
+import { defaultTraceConfig, Log, operationLog } from "../../trace/log";
+import { Target } from "../target";
 import { Chunk } from "./chunk";
 import { Image } from "./image";
 

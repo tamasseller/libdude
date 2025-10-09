@@ -1,10 +1,11 @@
-import { format32 } from "../src/format";
-import { Operation } from "../executor/executor";
-import Procedure from "../executor/program/procedure";
-import { delay } from "../src/logic/operation";
 import { FLASH } from "./stm32g0hw";
-import { Constant } from "../executor/program/expression";
 import { Chunk } from "./chunk";
+import Procedure from "../../../executor/program/procedure";
+import { Special } from "../../../executor/program/statement";
+import { DelayOperation } from "../../operations/probe";
+import { Constant } from "../../../executor/program/expression";
+import { Operation } from "../../../executor/executor";
+import { format32 } from "../../trace/format";
 
 const prepareFlash = Procedure.build($ => 
 {
@@ -16,7 +17,7 @@ const prepareFlash = Procedure.build($ =>
     {
         $.add(FLASH.KEYR.set(0x45670123))
         $.add(FLASH.KEYR.set(0xCDEF89AB))
-        $.add(delay(1))
+        $.add(new Special(new DelayOperation(1, e => {throw e})))
         $.add(FLASH.CR.wait(FLASH.CR.LOCK.is(false)))
     }),
 
