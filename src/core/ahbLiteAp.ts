@@ -4,6 +4,7 @@ import { DapAction } from '../operations/dapOperation'
 import { CSWMask, MemoryAccessPort } from "../data/adiRegisters";
 import { AdiRegister, AdiOperation } from "../operations/adiOperation";
 import { MemoryAccess, MemoryAccessTranslator, ReadMemory, WaitMemory, WriteMemory } from "../operations/memoryAccess";
+import { Chunk } from "../target/storage/chunk";
 
 export interface MemoryAccessObserver 
 {
@@ -58,23 +59,35 @@ export class AhbLiteAp implements MemoryAccessTranslator
     {
         assert(this.tar !== undefined && this.csw !== undefined)
 
+        let next = this.tar;
+
         if(this.csw & CSWMask.ADDRINC_SINGLE)
         {
             const size = this.csw & 3;
 
             if(size == CSWMask.SIZE_8)
             {
-                this.tar += count;
+                next += count;
             }
             else if(size == CSWMask.SIZE_16)
             {
-                this.tar += count * 2;
+                next += count * 2;
             }
             else
             {
                 assert(size == CSWMask.SIZE_32)
-                this.tar += count * 4;
+                next += count * 4;
             }
+        }
+
+        if((next >>> 10) === (this.tar >>> 10))
+        {
+            this.tar = next
+        }
+        else
+        {
+            assert((next & 0x3ff) === 0)
+            this.tar = undefined
         }
     }
 
@@ -490,11 +503,80 @@ export class AhbLiteAp implements MemoryAccessTranslator
         })
     }
 
+    /*
+     *      „ Auto address incrementing of bit [10] and beyond is implementation defined. "
+     */
+    static cutAtBoundary(cmds: MemoryAccess[]) 
+    {
+        const ret: MemoryAccess[] = []
+
+        for(const cmd of cmds)
+        {
+            if(cmd instanceof WriteMemory || cmd instanceof ReadMemory)
+            {
+                const end = cmd.address + cmd.getLength()
+
+                if((cmd.address >>> 10) != (end >>> 10))
+                {
+                    // Operation crosses 1k boundary
+
+                    if(cmd instanceof WriteMemory)
+                    {
+                        const chunks = new Chunk(cmd.values, cmd.address).sliceAligned(1024);
+                        assert(0 < chunks.length)
+
+                        for(let i = 0; i < chunks.length - 1; i++)
+                        {
+                            const ch = chunks[i]
+                            ret.push(new WriteMemory(ch.base, ch.data, undefined, cmd.fail))
+                        }
+
+                        const last = chunks[chunks.length - 1]
+                        ret.push(new WriteMemory(last.base, last.data, cmd.done, cmd.fail))
+                    }
+                    else
+                    {
+                        const result: Buffer[] = []
+                        let idx = 0;
+
+                        for(let base = cmd.address; base != end;) 
+                        {
+                            const pageEnd = ((base >>> 10) + 1) << 10;
+                            const chunkEnd = Math.min(pageEnd, end);
+                            const length = chunkEnd - base;
+                            const last = (base + length) == end
+                            const n = idx++;
+                            
+                            ret.push(new ReadMemory(base, length, d => 
+                            {
+                                result[n] = d;
+
+                                if(last)
+                                {
+                                    cmd.done(Buffer.concat(result))
+                                }
+                            }, cmd.fail));
+
+                            base += length
+                        }
+                    }
+
+                    continue
+                }
+            }
+
+            ret.push(cmd)
+        }
+
+        return ret
+    }
+
     public translate(rawCmds: MemoryAccess[]): AdiOperation[]
     {
         const ret: AdiOperation[] = []
 
-        const cmds = AhbLiteAp.coalesceSequential(rawCmds);
+        const coalescedCmds = AhbLiteAp.coalesceSequential(rawCmds);
+        const cmds = AhbLiteAp.cutAtBoundary(coalescedCmds)
 
         for(let i = 0; i < cmds.length;)
         {
