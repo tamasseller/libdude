@@ -1,4 +1,4 @@
-import assert from "assert";
+import assert, { deepStrictEqual } from "assert";
 import { CoreState, Target } from "../../operations/target";
 import { format32 } from "../../trace/format";
 import { defaultTraceConfig, Log, operationLog } from "../../trace/log";
@@ -9,7 +9,6 @@ export async function program(target: Target, image: Image, preferred?: string, 
 {
     const [state] = await target.execute(target.debug!.getState);
     assert(state as CoreState == CoreState.Halted)
-
     assert(target.program)
 
     for(const area of target.program.areas)
@@ -22,7 +21,7 @@ export async function program(target: Target, image: Image, preferred?: string, 
 
             if(area.write === undefined || area.write.length == 0)
             {
-                throw new Error(`Don't know how to write ${areaName}!`)
+                throw new Error(`Don't know how to write '${areaName}!'`)
             }
             
             const preferredWriter = ((preferred === undefined) ? undefined : area.write.find(w => w.desc?.includes(preferred)));
@@ -35,10 +34,22 @@ export async function program(target: Target, image: Image, preferred?: string, 
             for(const p of pages)
             {
                 const rangeName = `${format32(p.base)} - ${format32((p.base + p.data.length))}`
-                log.dbg?.(`Writing range ${rangeName} in area ${areaName}` + (writer.desc ? ` using '${writer.desc}' method` : ''))
+                log.dbg(`Writing range ${rangeName} in area ${areaName}` + (writer.desc ? ` using '${writer.desc}' method` : ''))
 
-                await target.execute(writer.perform, p.base, p.data)
+                const [status] = await target.execute(writer.perform, p.base, p.data, p.data.length)
+                if(status !== 0)
+                {
+                    throw new Error(`'${writer.desc}' failed in range ${rangeName} with status ${format32(status)}`)
+                }
             }
+
+            // const readback = pieces.map<[Chunk, Promise<Buffer>]>(p => [p, target.readSystemMemory(p.base, p.data.length)])
+
+            // for (const [piece, promise] of readback)
+            // {
+            //     const d = await promise
+            //     deepStrictEqual(d, piece.data, `Verification error in range ${format32(piece.base)} - ${format32((piece.base + piece.data.length))}`);
+            // }
         }
     }
 }

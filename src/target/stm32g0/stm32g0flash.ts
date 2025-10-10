@@ -1,10 +1,12 @@
 import { FLASH } from "./stm32g0hw";
 import Procedure from "../../../executor/src/program/procedure";
 import { DelayOperation } from "../../operations/probe";
-import { Constant } from "../../../executor/src/program/expression";
+import { Constant, Expression } from "../../../executor/src/program/expression";
 import { Special } from "../../../executor/src/interpreter/special";
 
-const prepareFlashFragment = $ => 
+const flashStart = 0x0800_0000;
+
+const prepareFlash = Procedure.build($ => 
 {
     // Wait busy
     $.add(FLASH.SR.wait(FLASH.SR.BSY1.is(false)))
@@ -27,17 +29,15 @@ const prepareFlashFragment = $ =>
         FLASH.SR.PGSERR.is(true),
         FLASH.SR.MISERR.is(true),
         FLASH.SR.FASTERR.is(true),
-    )),
+    ))
+})
 
-    $.return(new Constant(0))
-};
-
-const checkRdpFragment = $ => 
+const checkRdp = Procedure.build($ => 
 {
     $.return(FLASH.OPTR.get(FLASH.OPTR.RDP).ne(0xaa))
-};
+})
 
-const checkWrpEnabledFragment = $ => 
+const checkWrpEnabled = Procedure.build($ => 
 {
     const wrp = $.declare(FLASH.WRP1AR.get())
 
@@ -53,30 +53,38 @@ const checkWrpEnabledFragment = $ =>
     })
 
     $.return(new Constant(0))
-};
+})
 
 const checkWrpEnabledForPages = Procedure.build($ => 
 {
-    const [first, last] = $.args
+    const [idx] = $.args
 
     // Check WRP area A
-    const wrp = $.declare(FLASH.WRP1AR.get())
-    $.branch(wrp.bitand(0xff).le(wrp.shr(16).bitand(0xff)
-            .logand(wrp.bitand(0xff).le(last).logor(first.le(wrp.shr(16).bitand(0xff))))), 
-        $ => $.return(wrp, wrp)
+    const wrpa = $.declare(FLASH.WRP1AR.get())
+    const wrpaStart = $.declare(wrpa.bitand(0xff))
+    const wrpaEnd = $.declare(wrpa.shr(16).bitand(0xff))
+    const wrpaActive = $.declare(wrpaStart.le(wrpaEnd))
+    const wrpaMatch = $.declare(wrpaStart.le(idx).logand(idx.le(wrpaEnd)))
+
+    $.branch(wrpaActive.logand(wrpaMatch),
+        $ => $.return(wrpa)
     )
 
     // Check WRP area B
-    $.add(wrp.set(FLASH.WRP1BR.get()))
-    $.branch(wrp.bitand(0xff).le(wrp.shr(16).bitand(0xff)
-            .logand(wrp.bitand(0xff).le(last).logor(first.le(wrp.shr(16).bitand(0xff))))),
-        $ => $.return(wrp, wrp)
+    const wrpb = $.declare(FLASH.WRP1BR.get())
+    const wrpbStart = $.declare(wrpb.bitand(0xff))
+    const wrpbEnd = $.declare(wrpb.shr(16).bitand(0xff))
+    const wrpbActive = $.declare(wrpbStart.le(wrpbEnd))
+    const wrpbMatch = $.declare(wrpbStart.le(idx).logand(idx.le(wrpbEnd)))
+
+    $.branch(wrpbActive.logand(wrpbMatch),
+        $ => $.return(wrpb)
     )
 
-    $.return(new Constant(0), wrp)
+    $.return(new Constant(0))
 });
 
-const eraseAllFragment = $ => 
+const eraseAll = Procedure.build($ => 
 {
     // Select mass erase
     $.add(FLASH.CR.set(
@@ -94,11 +102,12 @@ const eraseAllFragment = $ =>
 
     // Read status
     $.return(FLASH.SR.get().bitand(0x3f8))
-};
+})
 
 const erasePage = Procedure.build($ => 
 {
     const [pageIdx] = $.args
+
     // Set erase parameters
     $.add(FLASH.CR.set(
         FLASH.CR.PNB.is(pageIdx),
@@ -128,14 +137,18 @@ const normalProgramFlash = Procedure.build($ =>
     $.add(FLASH.CR.set(FLASH.CR.PG.is(true)))
 
     // Do the programming
-    $.loop(dst.lt(end), $ => 
+    $.loop(dst.le(end), $ => 
     {
-        for(let i = 0; i < 2; i++)
-        {
-            $.add(dst.store(src.load()))
-            $.add(dst.increment(4))
-            $.add(src.increment(4))
-        }
+        const x = $.declare(src.read())
+        $.add(src.increment(4))
+        const y = $.declare(src.read())
+        $.add(src.increment(4))
+
+        $.add(dst.store(x))
+        $.add(dst.increment(4))
+
+        $.add(dst.store(y))
+        $.add(dst.increment(4))
 
         // Wait completion
         $.add(FLASH.SR.wait(FLASH.SR.BSY1.is(false)))
@@ -187,97 +200,84 @@ const fastProgramFlash = Procedure.build($ =>
     $.return(ret)
 });
 
-const lockFlashFragment = $ => 
+const lockFlash = Procedure.build($ => 
 {
     $.add(FLASH.CR.set(FLASH.CR.LOCK.is(true)))
     $.add(FLASH.CR.wait(FLASH.CR.LOCK.is(true)))
-
-    $.return(new Constant(0))
-};
+});
 
 export const massErase = Procedure.build($ => 
 {
-    $.add(FLASH.SR.wait(FLASH.SR.BSY1.is(false)))
+    const [rdpStatus] = $.call(checkRdp);
+    $.branch(rdpStatus.ne(0), $ => $.return(rdpStatus.add(0x1_0000)))
 
-    // Unlock flash
-    $.branch(FLASH.CR.get(FLASH.CR.LOCK), $ =>
-    {
-        $.add(FLASH.KEYR.set(0x45670123))
-        $.add(FLASH.KEYR.set(0xCDEF89AB))
-        $.add(new Special(new DelayOperation(1, e => {throw e})))
-        $.add(FLASH.CR.wait(FLASH.CR.LOCK.is(false)))
-    }),
+    const [wrpStatus] = $.call(checkWrpEnabled);
+    $.branch(wrpStatus.ne(0), $ => $.return(wrpStatus.add(0x2_0000)))
 
-    // Clear any previous errors
-    $.add(FLASH.SR.set(
-        FLASH.SR.PROGERR.is(true),
-        FLASH.SR.WRPERR.is(true),
-        FLASH.SR.PGAERR.is(true),
-        FLASH.SR.SIZERR.is(true),
-        FLASH.SR.PGSERR.is(true),
-        FLASH.SR.MISERR.is(true),
-        FLASH.SR.FASTERR.is(true),
-    )),
+    $.call(prepareFlash)
 
-    $.add(FLASH.CR.set(
-        FLASH.CR.MER1.is(true),
-    ))
+    const [status] = $.call(eraseAll)
 
-    // Launch mass erase
-    $.add(FLASH.CR.set(
-        FLASH.CR.MER1.is(true),
-        FLASH.CR.STRT.is(true)
-    ))
+    $.call(lockFlash)
 
-    // Wait completion
-    $.add(FLASH.SR.wait(FLASH.SR.BSY1.is(false)))
+    $.branch(status.ne(0), $ => $.return(status.add(0x3_0000)))
 
-    // Read status
-    const status = $.declare(FLASH.SR.get().bitand(0x3f8))
-
-    $.add(FLASH.CR.set(FLASH.CR.LOCK.is(true)))
-    $.add(FLASH.CR.wait(FLASH.CR.LOCK.is(true)))
-
-    $.return(status)
-
-    // checkRdpFragment($)
-    // checkWrpEnabledFragment($)
-    // prepareFlashFragment($)
-    // eraseAllFragment($)
-    // lockFlashFragment($)
+    $.return(0)
 })
 
-// const pageIndex = (addr: number) => (addr - 0x0800_0000) >>> 11
+const pageIndex = (e: Expression): Expression => e.sub(flashStart).shr(11)
 
-// function program(address: any, data: any, progProc: Procedure): Operation[]
-// {
-//     return [
-//         new Operation("check readout protection", checkRdp, []),
-//         new Operation("check flash write protection", checkWrpEnabledForPages, [
-//             pageIndex(address), 
-//             pageIndex(address + data.byteLength)
-//         ]),
-//         new Operation("unlock flash", prepareFlash, []),
-//         ...Chunk.makeAligned(2048, address, data).map(ch => 
-//         {
-//             const pgIdx = pageIndex(ch.base)
-//             const end = ch.base + ch.data.byteLength
+export const slowFlash = (flashSizeKb) => Procedure.build($ => 
+{
+    const flashEnd = flashStart + flashSizeKb * 1024;
+        
+    const [address, data, length] = $.args
 
-//             return [
-//                 new Operation(`erase page #${pgIdx}`, 
-//                     erasePage, [pgIdx]),
-//                 new Operation(`program range ${format32(ch.base)} - ${format32(end)} on page #${pgIdx}`, 
-//                     progProc, [ch.base, end, ch.data])
-//             ]
-//         }).flat(),
-//         new Operation("lock flash", lockFlash, []),
-//     ]
-// } 
+    $.branch(address.bitand(7).ne(0), $ => {
+        $.diagnostic("Address not aligned")
+        $.return(-1)
+    })
 
-// export function normalProgram(address: any, data: any): Operation[] {
-//     return program(address, data, normalProgramFlash)
-// } 
+    $.branch(address.lt(flashStart).logor(address.ge(flashEnd)) , $ => {
+        $.diagnostic("Address not in flash region")
+        $.return(-1)
+    })
 
-// export function fastProgram(address: any, data: any): Operation[] {
-//     return program(address, data, fastProgramFlash)
-// } 
+    const last = $.declare(address.add(length).sub(1));
+
+    $.branch(last.bitand(7).ne(7), $ => {
+        $.diagnostic("Size not aligned")
+        $.return(-1)
+    })
+
+    $.branch(last.lt(flashStart).logor(last.ge(flashEnd)) , $ => {
+        $.diagnostic("Data overflows main flash")
+        $.return(-1)
+    })
+
+    const startIdx = $.declare(pageIndex(address));
+    const endIdx = $.declare(pageIndex(last));
+
+    $.branch(startIdx.ne(endIdx) , $ => {
+        $.diagnostic("Multi page data not allowed")
+        $.return(-1)
+    })
+
+    const [rdpStatus] = $.call(checkRdp);
+    $.branch(rdpStatus.ne(0), $ => $.return(rdpStatus.add(0x1_0000)))
+
+    const [wrpStatus] = $.call(checkWrpEnabledForPages, startIdx);
+    $.branch(wrpStatus.ne(0), $ => $.return(wrpStatus.add(0x2_0000)))
+
+    $.call(prepareFlash)
+
+    const [eraseStatus] = $.call(erasePage, startIdx)
+    $.branch(eraseStatus.ne(0), $ => $.return(eraseStatus.add(0x3_0000)))
+
+    const [programStatus] = $.call(normalProgramFlash, address, last, data)
+    $.branch(programStatus.ne(0), $ => $.return(programStatus.add(0x3_0000)))
+
+    $.call(lockFlash)
+
+    $.return(0)
+})

@@ -14,7 +14,7 @@ import { AhbLiteAp } from "../../core/ahbLiteAp";
 import { MemoryAccessAdapter } from "../../operations/memoryAccess";
 import { Target, Storage } from "../../operations/target";
 import { Cortex } from "../common/cortex";
-import { massErase } from "./stm32g0flash";
+import { massErase, slowFlash } from "./stm32g0flash";
 
 export class Stm32g0 extends Cortex implements Target
 {
@@ -118,52 +118,21 @@ export class Stm32g0 extends Cortex implements Target
                     desc: "Main flash",
                     base: 0x0800_0000,
                     size: flashSizeKb * 1024,
-                    // write: 
-                    // [
-                    //     {
-                    //         desc: "normal",
-                    //         eraseSize: 2048,
-                    //         programSize: 8,
-                    //         perform: async (address, data) => 
-                    //         {
-                    //             assert((address & 7) === 0)
-                    //             assert(0x0800_0000 <= address && address < 0x0800_0000 + flashSizeKb * 1024);
-
-                    //             const end = (address + data.byteLength);
-                    //             assert((end & 7) === 0)
-                    //             assert(0x0800_0000 <= end && end < 0x0800_0000 + flashSizeKb * 1024);
-                                
-                    //             const coreState = await cortex.processor.getState()
-                    //             if(coreState !== CoreState.Halted)
-                    //             {
-                    //                 log.error(`Core is not halted before flash programming`)
-                    //             }
-
-                    //             await interpreter.executeOperations(...normalProgram(address, data))
-                    //         }
-                    //     },
-                    //     {
-                    //         desc: "fast",
-                    //         eraseSize: 2048,
-                    //         programSize: 256,
-                    //         perform: async (address, data) => {
-                    //             assert((address & 255) === 0)
-                    //             assert(0x0800_0000 <= address && address < 0x0800_0000 + flashSizeKb * 1024);
-
-                    //             const end = (address + data.byteLength);
-                    //             assert((end & 255) === 0)
-                    //             assert(0x0800_0000 <= end && end < 0x0800_0000 + flashSizeKb * 1024);
-                                
-                    //             const coreState = await cortex.processor.getState()
-                    //             if(coreState !== CoreState.Halted)
-                    //             {
-                    //                 log.error(`Core is not halted before flash programming`)
-                    //             }
-
-                    //             await interpreter.executeOperations(...fastProgram(address, data))
-                    //         }
-                    //     }
-                    // ]
+                    write: 
+                    [
+                        {
+                            desc: "normal",
+                            eraseSize: 2048,
+                            programSize: 8,
+                            perform: slowFlash(flashSizeKb)
+                        },
+                        // {
+                        //     desc: "fast",
+                        //     eraseSize: 2048,
+                        //     programSize: 256
+                        //     perform: fastFlash(flashSizeKb)
+                        // }
+                    ]
                 }
             ]
         }

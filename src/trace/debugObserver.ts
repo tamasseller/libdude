@@ -134,6 +134,10 @@ export class DebugObserver implements Observer
     {
         const args = s.args.map(v => this.stringify(v)).join(", ")
         const rvs = s.retvals.map(v => this.stringify(v)).join(", ")
-        this.log(`[${rvs}] = call(${args})`)
+        this.log(`${this.i}[${rvs}] = call(${args})`)
+    }
+
+    observerDiagnostic(msg: string): void {
+        this.log(`${this.i}>>> ${msg} <<< `)
     }
 }
