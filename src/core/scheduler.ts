@@ -41,7 +41,7 @@ export class MemoryAccessScheduler implements MemoryAccessor
     }
 
     read(address: number, length: number, done: (v: Buffer) => void, fail: (e: Error) => void): PendingAccess {
-        return this.add(new ReadMemory(address, length, done,fail));
+        return this.add(new ReadMemory(address, length, done, fail));
     }
 
     wait(address: number, mask: number, value: number, done: () => void, fail: (e: Error) => void): PendingAccess {

@@ -12,7 +12,16 @@ export class MemoryTracer implements MemoryAccessObserver
             case 1: return format8(data.readUInt8())
             case 2: return format16(data.readUInt16LE())
             case 4: return format32(data.readUInt32LE())
-            default: return bytes(data)
+            default: 
+                if(data.length < 64)
+                {
+                    return bytes(data)
+                }
+                else
+                {
+                    return `${bytes(data.subarray(0, 40))}... (${data.length} more bytes)`
+                }
+            
         }
     }
 

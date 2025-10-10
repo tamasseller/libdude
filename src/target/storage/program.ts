@@ -1,6 +1,6 @@
 import assert, { deepStrictEqual } from "assert";
 import { CoreState, Target } from "../../operations/target";
-import { format32 } from "../../trace/format";
+import { bytes, format32 } from "../../trace/format";
 import { defaultTraceConfig, Log, operationLog } from "../../trace/log";
 import { Chunk } from "./chunk";
 import { Image } from "./image";
@@ -17,39 +17,53 @@ export async function program(target: Target, image: Image, preferred?: string, 
 
         if(pieces.length)
         {
-            const areaName = area.desc ?? `area [${format32(area.base)} - ${format32(area.base + area.size)}]`
+            // const areaName = area.desc ?? `area [${format32(area.base)} - ${format32(area.base + area.size)}]`
 
-            if(area.write === undefined || area.write.length == 0)
-            {
-                throw new Error(`Don't know how to write '${areaName}!'`)
-            }
+            // if(area.write === undefined || area.write.length == 0)
+            // {
+            //     throw new Error(`Don't know how to write '${areaName}!'`)
+            // }
             
-            const preferredWriter = ((preferred === undefined) ? undefined : area.write.find(w => w.desc?.includes(preferred)));
-            const writer = preferredWriter ?? area.write[0] 
+            // const preferredWriter = ((preferred === undefined) ? undefined : area.write.find(w => w.desc?.includes(preferred)));
+            // const writer = preferredWriter ?? area.write[0] 
 
-            const data = Chunk.consolidate(pieces)
-            const padded = data.padToAlign(writer.programSize)
-            const pages = padded.sliceAligned(writer.eraseSize)
+            // const data = Chunk.consolidate(pieces)
+            // const padded = data.padToAlign(writer.programSize)
+            // const pages = padded.sliceAligned(writer.eraseSize)
 
-            for(const p of pages)
+            // for(const p of pages)
+            // {
+            //     const rangeName = `${format32(p.base)} - ${format32((p.base + p.data.length))}`
+            //     log.dbg(`Writing range ${rangeName} in area '${areaName}'` + (writer.desc ? ` using '${writer.desc}' method` : ''))
+
+            //     const [status] = await target.execute(writer.perform, p.base, p.data, p.data.length)
+            //     if(status !== 0)
+            //     {
+            //         throw new Error(`'${writer.desc}' failed in range ${rangeName} with status ${format32(status)}`)
+            //     }
+            // }
+
+            const readback = pieces.map<[Chunk, Promise<Buffer>]>(p => [p, target.readSystemMemory(p.base, p.data.length)])
+
+            for (const [piece, promise] of readback)
             {
-                const rangeName = `${format32(p.base)} - ${format32((p.base + p.data.length))}`
-                log.dbg(`Writing range ${rangeName} in area ${areaName}` + (writer.desc ? ` using '${writer.desc}' method` : ''))
+                log.dbg(`Verifying range ${format32(piece.base)} - ${format32((piece.base + piece.data.length))}`)
 
-                const [status] = await target.execute(writer.perform, p.base, p.data, p.data.length)
-                if(status !== 0)
+                const got = await promise
+                const exp = piece.data;
+
+                assert(got.length == exp.length)
+
+                for(let i = 0; i < got.length; i++)
                 {
-                    throw new Error(`'${writer.desc}' failed in range ${rangeName} with status ${format32(status)}`)
+                    if(got[i] !== exp[i])
+                    {
+                        throw new Error(`Verification error at ${format32(piece.base + i)}:\n\t`
+                            + `exp: ${bytes(exp.subarray(i, i + 20))}\n\t`
+                            + `got: ${bytes(got.subarray(i, i + 20))}\n`)
+                    }
                 }
             }
-
-            // const readback = pieces.map<[Chunk, Promise<Buffer>]>(p => [p, target.readSystemMemory(p.base, p.data.length)])
-
-            // for (const [piece, promise] of readback)
-            // {
-            //     const d = await promise
-            //     deepStrictEqual(d, piece.data, `Verification error in range ${format32(piece.base)} - ${format32((piece.base + piece.data.length))}`);
-            // }
         }
     }
 }
