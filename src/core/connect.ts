@@ -185,24 +185,24 @@ async function processAp(adapter: AdiExecutor, apsel: number, rawIdr: number)
     return apInfo
 }
 
-export async function disconnect(adapter: AdiOperationAdapter): Promise<void>
+export async function disconnect(probe: AdiExecutor): Promise<void>
 {
-    return new Promise<void>((resolve, reject) => adapter.execute([
-        // DebugPort.ABORT.write(
-        //     AbortMask.STKCMPCLR | AbortMask.STKERRCLR | AbortMask.ORUNERRCLR | AbortMask.WDERRCLR,
-        //     undefined, r => reject(new Error(`Sticky error clear read failed`, { cause: r }))
-        // ),
+    return new Promise<void>((resolve, reject) => probe.execute([
+        DebugPort.ABORT.write(
+            AbortMask.STKCMPCLR | AbortMask.STKERRCLR | AbortMask.ORUNERRCLR | AbortMask.WDERRCLR,
+            undefined, r => reject(new Error(`Sticky error clear read failed`, { cause: r }))
+        ),
 
-        // /* Deassert powerup request */
-        // DebugPort.CTRL_STAT.write(0, undefined, r => reject(new Error(`CTRL_STAT write for powerup failed`, { cause: r }))
-        // ),
+        /* Deassert powerup request */
+        DebugPort.CTRL_STAT.write(0, undefined, r => reject(new Error(`CTRL_STAT write for powerup failed`, { cause: r }))
+        ),
 
-        // /* Wait acknowledgement */
-        // DebugPort.CTRL_STAT.wait(
-        //     CtrlStatMask.CDBGPWRUPACK | CtrlStatMask.CSYSPWRUPACK,
-        //     0,
-        //     undefined, r => reject(new Error(`CTRL_STAT wait for powerup failed`, { cause: r }))
-        // ),
+        /* Wait acknowledgement */
+        DebugPort.CTRL_STAT.wait(
+            CtrlStatMask.CDBGPWRUPACK | CtrlStatMask.CSYSPWRUPACK,
+            0,
+            undefined, r => reject(new Error(`CTRL_STAT wait for powerup failed`, { cause: r }))
+        ),
 
         new LinkDriverShutdownOperation(reject),
         new UiOperation({CONNECT: false}, reject, resolve)

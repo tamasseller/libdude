@@ -62,102 +62,102 @@ export class Cortex
 
     debug: ExecutionControl = 
     {
-        writeCoreRegister: Procedure.build($ => 
-        {
-            const [reg, value] = $.args
-            $.add(DCRDR.set(value))
-            $.add(DCRSR.set(DCRSR.REGSEL.is(reg), DCRSR.REGWnR.is(true)))
-            $.add(DHCSR.wait(DHCSR.S_REGRDY.is(true)))
+        writeCoreRegister: Procedure.build($ => {
+            const [reg, value] = $.args;
+            $.add(DCRDR.set(value));
+            $.add(DCRSR.set(DCRSR.REGSEL.is(reg), DCRSR.REGWnR.is(true)));
+            $.add(DHCSR.wait(DHCSR.S_REGRDY.is(true)));
         }),
 
-        readCoreRegister: Procedure.build($ => 
-        {
-            const [reg] = $.args
-            $.add(DCRSR.set(DCRSR.REGSEL.is(reg), DCRSR.REGWnR.is(false)))
-            $.add(DHCSR.wait(DHCSR.S_REGRDY.is(true)))
-            $.return(DCRDR.get())
+        readCoreRegister: Procedure.build($ => {
+            const [reg] = $.args;
+            $.add(DCRSR.set(DCRSR.REGSEL.is(reg), DCRSR.REGWnR.is(false)));
+            $.add(DHCSR.wait(DHCSR.S_REGRDY.is(true)));
+            $.return(DCRDR.get());
         }),
 
-        getState: Procedure.build($ => 
-        {
-            const dhcsr = $.declare(DHCSR.get())
+        getState: Procedure.build($ => {
+            const dhcsr = $.declare(DHCSR.get());
 
-            $.branch(dhcsr.bitand(DHCSR.S_LOCKUP.mask), $ => $.return(new Constant(CoreState.Failed)))
-            $.branch(dhcsr.bitand(DHCSR.S_SLEEP.mask), $ => $.return(new Constant(CoreState.Sleeping)))
-            $.branch(dhcsr.bitand(DHCSR.S_HALT.mask), $ => $.return(new Constant(CoreState.Halted)))
-            $.return(new Constant(CoreState.Running))
+            $.branch(dhcsr.bitand(DHCSR.S_LOCKUP.mask), $ => $.return(new Constant(CoreState.Failed)));
+            $.branch(dhcsr.bitand(DHCSR.S_SLEEP.mask), $ => $.return(new Constant(CoreState.Sleeping)));
+            $.branch(dhcsr.bitand(DHCSR.S_HALT.mask), $ => $.return(new Constant(CoreState.Halted)));
+            $.return(new Constant(CoreState.Running));
         }),
 
-        halt: Procedure.build($ => 
-        {
+        halt: Procedure.build($ => {
             $.add(DHCSR.update(
                 DHCSR.C_DEBUGEN.is(true),
                 DHCSR.C_HALT.is(true),
                 DHCSR.DBGKEY.is(DHCSR.DBGKEY_VALUE)
-            ))
-            $.add(DHCSR.wait(DHCSR.S_HALT.is(true)))
+            ));
+            $.add(DHCSR.wait(DHCSR.S_HALT.is(true)));
         }),
 
-        resume: Procedure.build($ => 
-        {
+        resume: Procedure.build($ => {
             $.add(DHCSR.update(
                 DHCSR.C_DEBUGEN.is(true),
                 DHCSR.C_HALT.is(false),
                 DHCSR.DBGKEY.is(DHCSR.DBGKEY_VALUE)
-            ))
-            $.add(DHCSR.wait(DHCSR.S_HALT.is(false)))
+            ));
+            $.add(DHCSR.wait(DHCSR.S_HALT.is(false)));
         }),
 
-        reset: Procedure.build($ => 
-        {
-            const [halt] = $.args
+        reset: Procedure.build($ => {
+            const [halt] = $.args;
 
             /*
              * Assert hardware reset line
              */
-            $.add(new Special(new ResetLineOperation(true, r => { throw new Error(`Assert nRST failed`, { cause: r }); })))
+            $.add(new Special(new ResetLineOperation(true, r => { throw new Error(`Assert nRST failed`, { cause: r }); })));
 
             /*
              * Trap reset vector if halt is requested
              */
-            $.branch(halt, $ =>
-            {
-                $.add(DEMCR.update(DEMCR.CORERESET.is(true)))
+            $.branch(halt, $ => {
+                $.add(DEMCR.update(DEMCR.CORERESET.is(true)));
                 $.add(DHCSR.set(
                     DHCSR.C_DEBUGEN.is(true),
                     DHCSR.DBGKEY.is(DHCSR.DBGKEY_VALUE)
-                ))
-            })
+                ));
+            });
 
             /*
              * Read sticky reset flag twice, first read may return earlier value,
              * NRST is functional if the second read has a positive results
              */
-            const stickyReset = $.declare(DHCSR.get(DHCSR.S_RESET_ST))
-            $.add(stickyReset.set(DHCSR.get(DHCSR.S_RESET_ST)))
+            const stickyReset = $.declare(DHCSR.get(DHCSR.S_RESET_ST));
+            $.add(stickyReset.set(DHCSR.get(DHCSR.S_RESET_ST)));
 
-            $.branch(stickyReset.eq(0), 
+            $.branch(stickyReset.eq(0),
                 AIRCR.set(
                     AIRCR.VECTKEY.is(AIRCR.VECTKEY_VALUE),
                     AIRCR.SYSRESETREQ.is(true)
                 )
-            )
+            );
 
             /* Release nRST */
-            $.add(new Special(new ResetLineOperation(false, r => { throw new Error(`Deassert nRST failed`, { cause: r}); })))
+            $.add(new Special(new ResetLineOperation(false, r => { throw new Error(`Deassert nRST failed`, { cause: r }); })));
 
             /* Leave the target alone for 10ms to allow the reset to complete */
-            $.add(new Special(new DelayOperation(10_000, r => { throw new Error(`Wait 10ms for reset to complete failed`, { cause: r }); })))
+            $.add(new Special(new DelayOperation(10000, r => { throw new Error(`Wait 10ms for reset to complete failed`, { cause: r }); })));
 
             /* Wait until the reset is actually completed */
-            $.add(DHCSR.wait(DHCSR.S_RESET_ST.is(false)))
+            $.add(DHCSR.wait(DHCSR.S_RESET_ST.is(false)));
 
             /* Untrap reset vector */
-            $.add(DEMCR.update(DEMCR.CORERESET.is(false)))
+            $.add(DEMCR.update(DEMCR.CORERESET.is(false)));
 
-            const dhcsrOut = $.declare(DHCSR.get())
+            const dhcsrOut = $.declare(DHCSR.get());
 
-            $.return(stickyReset, dhcsrOut)
-        })
+            $.return(stickyReset, dhcsrOut);
+        }),
+
+        release: Procedure.build($ => {
+            $.add(DHCSR.update(
+                DHCSR.C_DEBUGEN.is(false),
+                DHCSR.DBGKEY.is(DHCSR.DBGKEY_VALUE)
+            ));
+        }),
     }
 }

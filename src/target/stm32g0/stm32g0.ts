@@ -1,15 +1,15 @@
 import { TargetDriver, TargetInfo } from "../driver";
 import { Jep106_Manufacturer } from "../../data/jep106";
 import { StPartNumbers } from "../../data/pidrPartNumbers";
-import { ConnectOptions } from "../../core/connect";
+import { ConnectOptions, disconnect } from "../../core/connect";
 import Procedure from "../../../executor/src/program/procedure";
 import { DBG, RCC } from "./stm32g0hw";
 import { Constant } from "../../../executor/src/program/expression";
 import { DeviceSignature, identifyPackage, partName, sramSizeKb } from "./stm32g0identity";
 import { LoadStoreWidth } from "../../../executor/src/program/common";
-import { ApClass } from "../../data/adiRegisters";
+import { ApClass, CtrlStatMask, DebugPort } from "../../data/adiRegisters";
 import { AdiExecutor } from "../../operations/adiOperation";
-import { defaultTraceConfig, memoryAccessLog, operationLog } from "../../trace/log";
+import { defaultTraceConfig, memoryAccessLog, operationLog, TraceConfig } from "../../trace/log";
 import { AhbLiteAp } from "../../core/ahbLiteAp";
 import { MemoryAccessAdapter } from "../../operations/memoryAccess";
 import { Target, Storage } from "../../operations/target";
@@ -42,12 +42,21 @@ export class Stm32g0 extends Cortex implements Target
         },
         (adapter: AdiExecutor, opts: ConnectOptions) => Stm32g0.build(adapter, opts)
     )
+
+    constructor(
+        maa: MemoryAccessAdapter,
+        trace: TraceConfig,
+        readonly adapter: AdiExecutor
+    ) {
+        super(maa, trace);
+    }
         
     static async build(adapter: AdiExecutor, opts: ConnectOptions): Promise<Stm32g0>
     {
         const ret = new Stm32g0(
             new MemoryAccessAdapter(adapter, new AhbLiteAp(0, memoryAccessLog(opts.trace))),
-            opts.trace ?? defaultTraceConfig
+            opts.trace ?? defaultTraceConfig,
+            adapter
         )
 
         await ret.execute(Procedure.build($ => 
@@ -138,5 +147,28 @@ export class Stm32g0 extends Cortex implements Target
         }
 
         return ret
+    }
+
+    async disconnect(): Promise<void> 
+    {
+        await this.execute(Procedure.build($ => {
+            $.call(this.debug.release)
+            /* Enable the clock for the DBGMCU if it's not already */
+            $.add(RCC.APBENR1.update(RCC.APBENR1.DBGEN.is(true)))
+
+            /* Enable debugging during all low power modes */
+            $.add(DBG.CR.update(
+                DBG.CR.DBG_STANDBY.is(false), 
+                DBG.CR.DBG_STOP.is(false)
+            ))
+
+            /* And make sure the WDTs stay synchronised to the run state of the processor */
+            $.add(DBG.APB_FZ1.update(
+                DBG.APB_FZ1.DBG_IWDG_STOP.is(false),
+                DBG.APB_FZ1.DBG_WWDG_STOP.is(false)
+            ))
+        }))
+
+        return disconnect(this.adapter)
     }
 }

@@ -10,6 +10,8 @@ export interface Target
 
     debug?: ExecutionControl,
     program?: Storage
+
+    disconnect(): Promise<void>
 }
 
 export interface ExecutionControl
@@ -20,6 +22,7 @@ export interface ExecutionControl
     readonly halt: Procedure               // () => void
     readonly resume: Procedure             // () => void
     readonly reset: Procedure              // (halt: bool) => bool (nrst works)
+    readonly release: Procedure            // () => void
 }
 
 export const enum CoreState 
@@ -29,6 +32,18 @@ export const enum CoreState
     Sleeping = 2,
     Failed   = 3,
 }
+
+export function strCoreState(state: CoreState) 
+{
+    switch(state)
+    {
+        case CoreState.Running:  return "Running"
+        case CoreState.Halted:   return "Halted"
+        case CoreState.Sleeping: return "Sleeping"
+        case CoreState.Failed:   return "Failed"
+    }
+}
+
 
 export interface Storage
 {
