@@ -9,20 +9,23 @@ export class ProbeDrivers
 {
     public static cmsisDap = CmsisDap.driver
 
-    public static get all(): ProbeDriver<Probe>[] 
+    public static all: () => ProbeDriver<Probe>[] = () =>
     {
+        ProbeDrivers.all = () => []
         const keys = Object.getOwnPropertyNames(ProbeDrivers);
         const vals = keys.map(key => (ProbeDrivers as any)[key]);
-        return vals.filter(val => val instanceof ProbeDriver);
+        const drvs = [...vals.filter(val => val instanceof ProbeDriver)];
+        ProbeDrivers.all = () => drvs
+        return drvs
     }
 
     public static get allVidPids(): {vid: number, pid: number}[] {
-        return ProbeDrivers.all.map(d => d.ids).flat();
+        return ProbeDrivers.all().map(d => d.ids).flat();
     }
 
     public static find(vid: number, pid: number): ProbeDriver<Probe> | undefined 
     {
-        for(const drv of ProbeDrivers.all)
+        for(const drv of ProbeDrivers.all())
         {
             if(drv.ids.some(x => x.vid === vid && x.pid == pid))
             {

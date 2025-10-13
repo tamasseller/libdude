@@ -8,50 +8,65 @@ import { connect, disconnect } from "../src/core/connect";
 import { readFileSync } from "node:fs";
 import { Image } from "../src/target/storage/image";
 import { program } from "../src/target/storage/program";
+import { format16 } from "../src/trace/format";
+import { Probe } from "../src/operations/probe";
 
-const validTraces = ["interpreter", "memory", "dap", "packets"] as const;
+const validTraces = ["interpreter", "memory", "operation", "packets"] as const;
 type ValidTrace = typeof validTraces[number]
 
 function isValidTrace(maybeValidTrace: unknown): maybeValidTrace is ValidTrace {
     return typeof maybeValidTrace === 'string' && validTraces.map(x => x as string).includes(maybeValidTrace);
 }
 
+const operations = ["wipe", "write", "verify"] as const;
+type Operation = typeof operations[number]
+
+function isOperation(maybeOperation: unknown): maybeOperation is Operation {
+    return typeof maybeOperation === 'string' && operations.map(x => x as string).includes(maybeOperation);
+}
+
 function processArgs(argv: string[]): { 
-    filename: string; 
-    quiet: boolean; 
-    trace: ValidTrace[]; 
-    dev?: { vid: number; pid: number; }; 
-    serial?: string; 
-    freq?: number; 
-    preferred?: string;
+    operation: Operation
+    filename: string
+    quiet: boolean
+    trace: ValidTrace[]
+    dev?: { vid: number; pid: number; }
+    serial?: string
+    freq?: number
+    preferred?: string
 } {
     if (argv.length < 3) 
     {
-        throw new Error(`Usage: ${argv[0]} <filename> [--quiet] [--trace {trace channels,}] [--dev vid:pid] [--serial serialNumber] [--freq value] [--preferred write-method]`);
+        throw new Error(
+            `\nUsage: ${argv[0]} [--quiet] [--trace {trace channels,}] [--dev vid:pid] [--serial serialNumber] [--freq value] [--preferred write-method] <op> [<filename>]\n\n` 
+            + `operations:\n`
+            + `  wipe   - mass erase target\n`
+            + `  write  - write (and verify) the specified file on the target\n`
+            + `  verify - verify that the specified file is written on the target\n`);
     }
 
     let opts: 
     {
-        trace: (typeof validTraces[number])[];
-        freq?: number;
-        quiet: boolean;
-        preferred?: string;
-        serial?: string;
-        dev?: { vid: number; pid: number; }; 
+        trace: ValidTrace[]
+        freq?: number
+        quiet: boolean
+        preferred?: string
+        serial?: string
+        dev?: { vid: number; pid: number; }
     } = {
         trace: [],
         quiet: false
     };
 
-    let filename: string | undefined; 
+    let positional: string[] = []; 
 
     for (let i = 2; i < argv.length; i++) 
     {
         const arg = argv[i];
 
-        if (!filename && !arg.startsWith("--")) 
+        if (!arg.startsWith("--")) 
         {
-            filename = arg;
+            positional.push(arg)
         }
         else if (arg === "--dev") 
         {
@@ -117,17 +132,6 @@ function processArgs(argv: string[]): {
             
             opts.serial = val;
         } 
-        else if (arg === "--serial") 
-        {
-            const val = argv[++i];
-
-            if (!val) 
-            {
-                throw new Error("Error: --serial expects a string argument");
-            }
-            
-            opts.serial = val;
-        } 
         else if (arg === "--preferred") 
         {
             const val = argv[++i];
@@ -145,12 +149,22 @@ function processArgs(argv: string[]): {
         }
     }
 
-    if (!filename) 
+    const [op, filename] = positional
+    if(!op) throw new Error("Error: no operation specified");
+
+    switch(op)
     {
-        throw new Error("Error: filename is required");
+        case "wipe":
+            return {operation: "wipe", filename: "???", ...opts};
+        case "write":
+            if(!filename) throw new Error("Error: filename is required");
+            return {operation: "write", filename, ...opts};
+        case "verify":
+            if(!filename) throw new Error("Error: filename is required");
+            return {operation: "verify", filename, ...opts};
+        default:
+            throw new Error(`Error: unknown operation '${op}'`);
     }
-    
-    return {filename: filename, ...opts};
 }
 
 function assembleTraceConfig(args: { trace: ValidTrace[]; quiet: boolean; }): TraceConfig
@@ -158,7 +172,7 @@ function assembleTraceConfig(args: { trace: ValidTrace[]; quiet: boolean; }): Tr
     const ret = {...defaultTraceConfig};
 
     if(args.quiet) ret.informational = () => {}
-    if (args.trace.includes("dap"))         ret.dapTrace          = msg => console.error(msg)
+    if (args.trace.includes("operation"))         ret.operationTrace    = msg => console.error(msg)
     if (args.trace.includes("interpreter")) ret.interpreterTrace  = msg => console.error(msg)
     if (args.trace.includes("memory"))      ret.memoryAccessTrace = msg => console.error(msg)
     if (args.trace.includes("packets"))     ret.packetTrace       = msg => console.error(msg)
@@ -166,23 +180,34 @@ function assembleTraceConfig(args: { trace: ValidTrace[]; quiet: boolean; }): Tr
     return ret;
 }
 
-function assembleSelector(
+function summonProbe(
     args: {
-        serial?: string; 
-        dev?: { vid: number; pid: number; }; 
-    }
-)
+        serial?: string;
+        dev?: { vid: number; pid: number; };
+    }, 
+    traceConfig: TraceConfig
+): Promise<Probe>
 {
-    if(args.serial !== undefined) return args.serial
-    if(args.dev !== undefined) return ProbeDrivers.find(args.dev.vid, args.dev.pid)
-}
+    if(args.dev !== undefined)
+    {
+        const drv = ProbeDrivers.find(args.dev.vid, args.dev.pid)
 
+        if(!drv)
+        {
+            throw new Error(`No driver for ${format16(args.dev.vid)}:${format16(args.dev.pid)}`)
+        }
+
+        return drv.summon(args.serial, traceConfig)
+    } 
+
+    return ProbeDrivers.summon(args.serial, traceConfig)
+}
     
 async function main(): Promise<number>
 {
     const args = processArgs(process.argv)
     const traceConfig = assembleTraceConfig(args)
-    const probe = await ProbeDrivers.summon(assembleSelector(args), traceConfig);
+    const probe = await summonProbe(args, traceConfig);
     assert(probe)
 
     const image = await Image.readElf(readFileSync(args.filename));
@@ -191,7 +216,13 @@ async function main(): Promise<number>
 
     try
     {
-        const target = await connect(probe)
+        const target = await connect(probe, {
+            underReset: true,
+            halt: true,
+            swdFrequencyHz: args.freq,
+            trace: traceConfig,
+        })
+
         console.log(`Target: ${target.description}`)
 
         const startTime = performance.now()
