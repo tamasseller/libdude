@@ -282,7 +282,7 @@ export class CmsisDap implements Probe
                         if (r != Response.OK)  top.fail(new Error(`SwjClock failed`, { cause: r })) 
                     }),
                     
-                    new TransferConfigureCommand(0, 32768, 32768, r => { // TODO make parameters configurable
+                    new TransferConfigureCommand(top.opts.idleCycles ?? 8, 32768, 32768, r => { // TODO make parameters configurable
                         if (r != Response.OK) top.fail(new Error(`TransferConfigure failed`, { cause: r })) 
                     }),
 

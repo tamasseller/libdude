@@ -28,6 +28,8 @@ export interface ConnectOptions
      */
     swdFrequencyHz?: number
 
+    swdIdleCycles?: number
+
     target?: TargetDriver<Target> | string
 
     trace?: TraceConfig
@@ -47,7 +49,8 @@ export async function connect(probe: Probe, opts: ConnectOptions = {}): Promise<
     await new Promise<void>((resolve, reject) => adapter.execute([
         /* Initialize physical interface */
         new LinkDriverSetupOperation({
-            ...(opts.swdFrequencyHz ? {frequency: opts.swdFrequencyHz} : {})
+            ...(opts.swdFrequencyHz ? {frequency: opts.swdFrequencyHz} : {}),
+            ...(opts.swdIdleCycles ? {idleCycles: opts.swdIdleCycles} : {})
         }, r => reject(new Error(`SWD link driver setup failed`, { cause: r }))),
 
         /* Assert nRST if reset is requested */

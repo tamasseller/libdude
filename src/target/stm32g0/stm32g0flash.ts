@@ -264,18 +264,18 @@ export const slowFlash = (flashSizeKb) => Procedure.build($ =>
     })
 
     const [rdpStatus] = $.call(checkRdp);
-    $.branch(rdpStatus.ne(0), $ => $.return(rdpStatus.add(0x1_0000)))
+    $.branch(rdpStatus.ne(0), $ => $.return(rdpStatus.add(0x1000_0000)))
 
     const [wrpStatus] = $.call(checkWrpEnabledForPages, startIdx);
-    $.branch(wrpStatus.ne(0), $ => $.return(wrpStatus.add(0x2_0000)))
+    $.branch(wrpStatus.ne(0), $ => $.return(wrpStatus.add(0x2000_0000)))
 
     $.call(prepareFlash)
 
     const [eraseStatus] = $.call(erasePage, startIdx)
-    $.branch(eraseStatus.ne(0), $ => $.return(eraseStatus.add(0x3_0000)))
+    $.branch(eraseStatus.ne(0), $ => $.return(eraseStatus.add(0x3000_0000)))
 
     const [programStatus] = $.call(normalProgramFlash, address, last, data)
-    $.branch(programStatus.ne(0), $ => $.return(programStatus.add(0x3_0000)))
+    $.branch(programStatus.ne(0), $ => $.return(programStatus.add(0x4000_0000)))
 
     $.call(lockFlash)
 

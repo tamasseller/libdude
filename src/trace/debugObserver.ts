@@ -1,7 +1,7 @@
 import { format32 } from "./format";
 import { operatorPrecedence, operatorToString } from "../../executor/src/program/binaryOperator";
 import { LoadStoreWidth } from "../../executor/src/program/common";
-import { Variable, Expression, Constant, Load, Binary } from "../../executor/src/program/expression";
+import { Variable, Expression, Constant, Load, Binary, ReadFromBuffer } from "../../executor/src/program/expression";
 import { Assignment, Store, Loop, Branch, Jump, JumpKind, Call } from "../../executor/src/program/statement";
 import { Observer } from "../../executor/src/interpreter/observer";
 import assert from "assert";
@@ -76,9 +76,8 @@ export class DebugObserver implements Observer
         {
             return `[${this.stringify(value.address, 0, true)}${DebugObserver.loadStoreWidthToString(value.width)}]`
         }
-        else 
+        else if(value instanceof Binary)
         {
-            assert(value instanceof Binary)
             const prec = operatorPrecedence(value.operator)
             const needParen = prec < parentPrecedence
             const o = needParen ? '(' : ''
@@ -87,6 +86,12 @@ export class DebugObserver implements Observer
             const r = this.stringify(value.right, prec)
             const c = needParen ? ')' : ''
             return `${o}${l} ${op} ${r}${c}`
+        }
+        else
+        {
+            assert(value instanceof ReadFromBuffer)
+            return `readBuff(${value.address})`
+            // TODO
         }
     }
 

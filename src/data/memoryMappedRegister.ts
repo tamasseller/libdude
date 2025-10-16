@@ -52,7 +52,7 @@ export class Register<R extends Register<R>> {
             const masked = old.bitand(~mask);
             const replaced = masked.bitor(value);
 
-            return new Constant(this.address).store(value);
+            return new Constant(this.address).store(replaced);
         }
     }
 

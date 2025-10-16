@@ -16,6 +16,7 @@ export class LinkDriverSetupOperation extends LinkManagementOperation
 {
     constructor(
         readonly opts: {
+            idleCycles?: number,
             frequency?: number,
             [key: string]: any 
         },
