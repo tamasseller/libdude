@@ -5,6 +5,7 @@ export const enum StPartNumbers
 {
     STM32C011          = 0x443,
     STM32C031          = 0x453,
+    STM32C051          = 0x44c,
     STM32G03_4         = 0x466,
     STM32G05_6         = 0x456,
     STM32G07_8         = 0x460,

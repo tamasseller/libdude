@@ -5,7 +5,7 @@ import { ConnectOptions, disconnect } from "../../core/connect";
 import Procedure from "../../../executor/src/program/procedure";
 import { DBG, RCC } from "./stm32g0hw";
 import { Constant } from "../../../executor/src/program/expression";
-import { DeviceSignature, identifyPackage, partName, sramSizeKb } from "./stm32g0identity";
+import { DeviceSignature, flashSizeReg, identifyPackage, partName, sramSizeKb } from "./stm32g0identity";
 import { LoadStoreWidth } from "../../../executor/src/program/common";
 import { ApClass, CtrlStatMask, DebugPort } from "../../data/adiRegisters";
 import { AdiExecutor } from "../../operations/adiOperation";
@@ -15,6 +15,7 @@ import { MemoryAccessAdapter } from "../../operations/memoryAccess";
 import { Target, Storage } from "../../operations/target";
 import { Cortex } from "../common/cortex";
 import { massErase, slowFlash } from "./stm32g0flash";
+import {format32} from "../../trace/format"
 
 export class Stm32g0 extends Cortex implements Target
 {
@@ -93,13 +94,15 @@ export class Stm32g0 extends Cortex implements Target
             await ret.execute(ret.debug.resume)
         }
 
-        const [part, pkgData, flashSizeKb] = await ret.execute(Procedure.build($ => 
+        const [part, pkgData] = await ret.execute(Procedure.build($ => 
         {
             const part = $.declare(DBG.IDCODE.get(DBG.IDCODE.DEV_ID))
             const pkg = $.declare(new Constant(DeviceSignature.PackageData).load(LoadStoreWidth.U2).bitand(0xf))
-            const flash = $.declare(new Constant(DeviceSignature.FlashSize).load(LoadStoreWidth.U2))
-            $.return(part, pkg, flash)
+            $.return(part, pkg)
         }))
+
+        const fsr = flashSizeReg(part)
+        const [flashSizeKb] = await ret.execute(Procedure.build($ => $.return(new Constant(fsr).load(LoadStoreWidth.U2))))
     
         if(256 < flashSizeKb)
         {
