@@ -98,8 +98,10 @@ export function identifyPackage(part: StPartNumbers, pkgData: number)
         {
         case 0b0001: return Stm32g0Package.SO8
         case 0b0100: return Stm32g0Package.WLCSP12
-        case 0b0111: return Stm32g0Package.UFQFPN20
+        case 0b0011: return Stm32g0Package.UFQFPN20
         case 0b0111: return Stm32g0Package.TSSOP20
         }
     }
+
+    return `0b${pkgData.toString(2)}`
 }
